@@ -9,6 +9,15 @@ elasticsearch.hosts: [ http://elasticsearch:9200 ]
 monitoring.ui.container.elasticsearch.enabled: true
 monitoring.ui.container.logstash.enabled: true
 
+# Disable all telemetry reporting
+telemetry.optIn: false
+
+# Prevent users from changing this setting in the UI
+telemetry.allowChangingOptInStatus: false
+
+# Disable APM telemetry collection
+xpack.apm.telemetryCollectionEnabled: false
+
 ## Security credentials
 #
 elasticsearch.username: kibana_system
@@ -24,7 +33,7 @@ elasticsearch.password: ${KIBANA_SYSTEM_PASSWORD}
 ## https://www.elastic.co/docs/reference/kibana/commands/kibana-encryption-keys
 #
 #xpack.security.encryptionKey:
-#xpack.encryptedSavedObjects.encryptionKey:
+xpack.encryptedSavedObjects.encryptionKey: "701b5f3d723ac470e3301d9b5ce54583"
 #xpack.reporting.encryptionKey:
 
 ## Fleet
