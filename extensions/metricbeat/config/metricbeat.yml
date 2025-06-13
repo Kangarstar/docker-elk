@@ -1,0 +1,105 @@
+## Metricbeat configuration
+## https://github.com/elastic/beats/blob/main/deploy/docker/metricbeat.docker.yml
+#
+
+name: metricbeat
+
+metricbeat.config:
+  modules:
+    path: ${path.config}/modules.d/*.yml
+    # Reload module configs as they change:
+    reload.enabled: false
+
+metricbeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+
+metricbeat.modules:
+- module: elasticsearch
+  hosts: [ https://elasticsearch:9200 ]
+  username: monitoring_internal
+  password: ${MONITORING_INTERNAL_PASSWORD}
+  ssl:
+    certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
+    verification_mode: certificate
+  xpack.enabled: true
+  period: 10s
+  enabled: true
+
+- module: kibana
+  hosts: [ https://kibana:5601 ]
+  username: monitoring_internal
+  password: ${MONITORING_INTERNAL_PASSWORD}
+  ssl:
+    certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
+    verification_mode: certificate
+  xpack.enabled: true
+  period: 10s
+  enabled: true
+
+- module: docker
+  metricsets:
+    - container
+    - cpu
+    - diskio
+    - healthcheck
+    - info
+    #- image
+    - memory
+    - network
+  hosts: [ unix:///var/run/docker.sock ]
+  period: 10s
+  enabled: true
+
+- module: system
+  period: 10s
+  metricsets:
+    - cpu
+    - load
+    - memory
+    - network
+    - process
+    - process_summary
+    - socket_summary
+    - filesystem
+    - fsstat
+  processes: ['.*']
+  process.include_top_n:
+    by_cpu: 5
+    by_memory: 5
+  enabled: true
+
+processors:
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+logging.level: info
+logging.to_stderr: true
+
+monitoring:
+  enabled: true
+  elasticsearch:
+    hosts: [ https://elasticsearch:9200 ]
+    username: beats_system
+    password: ${BEATS_SYSTEM_PASSWORD}
+    ssl:
+      certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
+      verification_mode: certificate
+
+output.elasticsearch:
+  hosts: [ https://elasticsearch:9200 ]
+  username: metricbeat_internal
+  password: ${METRICBEAT_INTERNAL_PASSWORD}
+  ssl:
+    certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
+    verification_mode: certificate
+
+## HTTP endpoint for health checking
+## https://www.elastic.co/guide/en/beats/metricbeat/current/http-endpoint.html
+#
+
+http:
+  enabled: true
+  host: 0.0.0.0

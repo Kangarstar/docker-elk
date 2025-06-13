@@ -1,0 +1,118 @@
+---
+## Default Kibana configuration from Kibana base image.
+## https://github.com/elastic/kibana/blob/main/src/dev/build/tasks/os_packages/docker_generator/templates/kibana_yml.template.ts
+#
+server.name: kibana
+server.host: 0.0.0.0
+elasticsearch.hosts: [ https://elasticsearch:9200 ]
+
+monitoring.ui.container.elasticsearch.enabled: true
+monitoring.ui.container.logstash.enabled: true
+
+# Disable all telemetry reporting
+telemetry.optIn: false
+
+# Prevent users from changing this setting in the UI
+telemetry.allowChangingOptInStatus: false
+
+# Disable APM telemetry collection
+xpack.apm.telemetryCollectionEnabled: false
+
+## X-Pack security credentials
+#
+elasticsearch.username: kibana_system
+elasticsearch.password: ${KIBANA_SYSTEM_PASSWORD}
+
+##
+## TLS configuration
+## See instructions from README to enable.
+##
+
+## Communications between Kibana and Elasticsearch
+## see https://www.elastic.co/guide/en/kibana/current/configuring-tls.html#configuring-tls-kib-es
+#
+elasticsearch.ssl.certificateAuthorities: [ config/ca.crt ]
+
+## Communications between web browsers and Kibana
+## see https://www.elastic.co/guide/en/kibana/current/configuring-tls.html#configuring-tls-browser-kib
+#
+server.ssl.enabled: true
+server.ssl.certificate: config/kibana.crt
+server.ssl.key: config/kibana.key
+
+## Encryption keys (optional but highly recommended)
+##
+## Generate with either
+##  $ docker container run --rm docker.elastic.co/kibana/kibana:9.0.0 bin/kibana-encryption-keys generate
+##  $ openssl rand -hex 32
+##
+## https://www.elastic.co/guide/en/kibana/current/using-kibana-with-security.html
+## https://www.elastic.co/guide/en/kibana/current/kibana-encryption-keys.html
+#
+xpack.encryptedSavedObjects.encryptionKey: 3827bd200c5241863ed08386da2b40f9
+xpack.reporting.encryptionKey: 78fc59a7ac1348b3d43a161d4c23bef9
+xpack.security.encryptionKey: c97e31c7eb741bb2309ca5a5d798a2fc
+## Fleet
+## https://www.elastic.co/guide/en/kibana/current/fleet-settings-kb.html
+#
+xpack.fleet.agents.fleet_server.hosts: [ https://fleet-server:8220 ]
+
+xpack.fleet.outputs:
+  - id: fleet-default-output
+    name: default
+    type: elasticsearch
+    hosts: [ https://elasticsearch:9200 ]
+    # Set to output of 'docker compose up tls'. Example:
+    #ca_trusted_fingerprint: 846637d1bb82209640d31b79869a370c8e47c2dc15c7eafd4f3d615e51e3d503
+    is_default: true
+    is_default_monitoring: true
+
+xpack.fleet.packages:
+  - name: fleet_server
+    version: latest
+  - name: system
+    version: latest
+  - name: elastic_agent
+    version: latest
+  - name: docker
+    version: latest
+  - name: windows
+    version: latest
+
+xpack.fleet.agentPolicies:
+  - name: Fleet Server Policy
+    id: fleet-server-policy
+    description: Static agent policy for Fleet Server
+    monitoring_enabled:
+      - logs
+      - metrics
+    package_policies:
+      - name: fleet_server-1
+        package:
+          name: fleet_server
+      - name: system-1
+        package:
+          name: system
+      - name: elastic_agent-1
+        package:
+          name: elastic_agent
+      - name: docker-1
+        package:
+          name: docker
+
+  - name: Windows
+    id: windows-agent-policy
+    description: Static agent policy for Windows Clients
+    monitoring_enabled:
+      - logs
+      - metrics
+    package_policies:
+      - name: windows-1
+        package:
+          name: windows
+      - name: system-2
+        package:
+          name: system
+      - name: elastic_agent-2
+        package:
+          name: elastic_agent
