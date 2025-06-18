@@ -1,8 +1,6 @@
 # Elastic stack (ELK) on Docker
 
-[![Elastic Stack version](https://img.shields.io/badge/Elastic%20Stack-9.0.1-00bfb3?style=flat&logo=elastic-stack)](https://www.elastic.co/blog/category/releases)
-[![Build Status](https://github.com/deviantony/docker-elk/actions/workflows/ci.yml/badge.svg?branch=tls)](https://github.com/deviantony/docker-elk/actions/workflows/ci.yml?query=branch%3Atls)
-[![Join the chat](https://badges.gitter.im/Join%20Chat.svg)](https://app.gitter.im/#/room/#deviantony_docker-elk:gitter.im)
+[![Elastic Stack version](https://img.shields.io/badge/Elastic%20Stack-9.0.2-00bfb3?style=flat&logo=elastic-stack)](https://www.elastic.co/blog/category/releases)
 
 Run the latest version of the [Elastic stack][elk-stack] with Docker and Docker Compose.
 
@@ -16,8 +14,6 @@ Based on the [official Docker images][elastic-docker] from Elastic:
 * [Kibana](https://github.com/elastic/kibana/tree/main/src/dev/build/tasks/os_packages/docker_generator)
 
 Other available stack variants:
-
-* [`default`](https://github.com/deviantony/docker-elk/tree/main): default setup without TLS encryption
 
 > [!IMPORTANT]
 > [Platinum][subscriptions] features are enabled by default for a [trial][license-mngmt] duration of **30 days**. After
@@ -142,7 +138,7 @@ instructions from the [documentation][mac-filesharing] to add more locations.
 Clone this repository onto the Docker host that will run the stack with the command below:
 
 ```sh
-git clone --branch tls https://github.com/deviantony/docker-elk.git
+git clone https://github.com/NTE-Airport-DSI/docker-elk.git
 ```
 
 Then, generate X.509 certificates and private keys to enable secure communications over TLS between components:
