@@ -63,16 +63,16 @@ services:
     networks:
       - elk
     depends_on:
-      - elasticsearch
+      - elasticsearch1
 
-  elasticsearch:
+  elasticsearch1:
     build:
       context: elasticsearch/
       args:
         ELASTIC_VERSION: ${ELASTIC_VERSION}
     volumes:
       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z
-      - elasticsearch:/usr/share/elasticsearch/data:Z
+      - elasticsearch1:/usr/share/elasticsearch/data:Z
       # (!) TLS certificates. Generate using the 'tls' service.
       - ./tls/certs/ca/ca.crt:/usr/share/elasticsearch/config/ca.crt:ro,z
       - ./tls/certs/elasticsearch/elasticsearch.crt:/usr/share/elasticsearch/config/elasticsearch.crt:ro,z
@@ -81,18 +81,120 @@ services:
       - 9200:9200
       - 9300:9300
     environment:
-      node.name: elasticsearch
-      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      node.name: elasticsearch1
+      node.roles: master, data, ingest
+      discovery.seed_hosts: elasticsearch2,elasticsearch3
+      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      ES_JAVA_OPTS: -Xms4g -Xmx4g
       # Bootstrap password.
       # Used to initialize the keystore during the initial startup of
       # Elasticsearch. Ignored on subsequent runs.
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
       # Use single node discovery in order to disable production mode and avoid bootstrap checks.
       # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
-      discovery.type: single-node
     networks:
       - elk
     restart: unless-stopped
+
+  elasticsearch2:
+    build:
+      context: elasticsearch/
+      args:
+        ELASTIC_VERSION: ${ELASTIC_VERSION}
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z
+      - elasticsearch2:/usr/share/elasticsearch/data:Z
+      # (!) TLS certificates. Generate using the 'tls' service.
+      - ./tls/certs/ca/ca.crt:/usr/share/elasticsearch/config/ca.crt:ro,z
+      - ./tls/certs/elasticsearch/elasticsearch.crt:/usr/share/elasticsearch/config/elasticsearch.crt:ro,z
+      - ./tls/certs/elasticsearch/elasticsearch.key:/usr/share/elasticsearch/config/elasticsearch.key:ro,z
+
+    environment:
+      node.name: elasticsearch2
+      node.roles: master, data, ingest
+      discovery.seed_hosts: elasticsearch1,elasticsearch3
+      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      ES_JAVA_OPTS: -Xms4g -Xmx4g
+      # Bootstrap password.
+      # Used to initialize the keystore during the initial startup of
+      # Elasticsearch. Ignored on subsequent runs.
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks.
+      # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch1
+    restart: unless-stopped
+
+  elasticsearch3:
+    build:
+      context: elasticsearch/
+      args:
+        ELASTIC_VERSION: ${ELASTIC_VERSION}
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,Z
+      - elasticsearch3:/usr/share/elasticsearch/data:Z
+      # (!) TLS certificates. Generate using the 'tls' service.
+      - ./tls/certs/ca/ca.crt:/usr/share/elasticsearch/config/ca.crt:ro,z
+      - ./tls/certs/elasticsearch/elasticsearch.crt:/usr/share/elasticsearch/config/elasticsearch.crt:ro,z
+      - ./tls/certs/elasticsearch/elasticsearch.key:/usr/share/elasticsearch/config/elasticsearch.key:ro,z
+
+    environment:
+      node.name: elasticsearch3
+      node.roles: master, data, ingest
+      discovery.seed_hosts: elasticsearch1,elasticsearch2
+      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      ES_JAVA_OPTS: -Xms4g -Xmx4g
+      # Bootstrap password.
+      # Used to initialize the keystore during the initial startup of
+      # Elasticsearch. Ignored on subsequent runs.
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      # Use single node discovery in order to disable production mode and avoid bootstrap checks.
+      # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch2
+    restart: unless-stopped
+
+
+  kibana:
+    build:
+      context: kibana/
+      args:
+        ELASTIC_VERSION: ${ELASTIC_VERSION}
+    volumes:
+      - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+      # (!) TLS certificates. Generate using the 'tls' service.
+      - ./tls/certs/ca/ca.crt:/usr/share/kibana/config/ca.crt:ro,z
+      - ./tls/certs/kibana/kibana.crt:/usr/share/kibana/config/kibana.crt:ro,Z
+      - ./tls/certs/kibana/kibana.key:/usr/share/kibana/config/kibana.key:ro,Z
+    ports:
+      - 5601:5601
+    environment:
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-}
+    networks:
+      - elk
+    depends_on:
+      es01:
+        condition: service_healthy
+      es02:
+        condition: service_healthy
+      es03:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  elasticsearch1:
+  elasticsearch2:
+  elasticsearch3:
+
+
 
 #  logstash:
 #    build:
@@ -117,31 +219,3 @@ services:
 #    depends_on:
 #      - elasticsearch
 #    restart: unless-stopped
-
-  kibana:
-    build:
-      context: kibana/
-      args:
-        ELASTIC_VERSION: ${ELASTIC_VERSION}
-    volumes:
-      - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
-      # (!) TLS certificates. Generate using the 'tls' service.
-      - ./tls/certs/ca/ca.crt:/usr/share/kibana/config/ca.crt:ro,z
-      - ./tls/certs/kibana/kibana.crt:/usr/share/kibana/config/kibana.crt:ro,Z
-      - ./tls/certs/kibana/kibana.key:/usr/share/kibana/config/kibana.key:ro,Z
-    ports:
-      - 5601:5601
-    environment:
-      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:-}
-    networks:
-      - elk
-    depends_on:
-      - elasticsearch
-    restart: unless-stopped
-
-networks:
-  elk:
-    driver: bridge
-
-volumes:
-  elasticsearch:
