@@ -38,8 +38,6 @@ services:
   # '--profile=setup' CLI flag to Compose commands, or "up" the service by name
   # such as 'docker compose up setup'.
   setup:
-    profiles:
-      - setup
     build:
       context: setup/
       args:
@@ -64,6 +62,8 @@ services:
       - elk
     depends_on:
       - elasticsearch1
+      - elasticsearch2
+      - elasticsearch3
 
   elasticsearch1:
     build:
@@ -84,7 +84,7 @@ services:
       node.name: elasticsearch1
       node.roles: master, data, ingest
       discovery.seed_hosts: elasticsearch2,elasticsearch3
-      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      cluster.initial_master_nodes: elasticsearch1,elasticsearch2,elasticsearch3
       ES_JAVA_OPTS: -Xms4g -Xmx4g
       # Bootstrap password.
       # Used to initialize the keystore during the initial startup of
@@ -94,7 +94,16 @@ services:
       # see: https://www.elastic.co/guide/en/elasticsearch/reference/current/bootstrap-checks.html
     networks:
       - elk
-    restart: unless-stopped
+    # restart: unless-stopped
+    deploy:
+      replicas: 1
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
 
   elasticsearch2:
     build:
@@ -108,12 +117,11 @@ services:
       - ./tls/certs/ca/ca.crt:/usr/share/elasticsearch/config/ca.crt:ro,z
       - ./tls/certs/elasticsearch/elasticsearch.crt:/usr/share/elasticsearch/config/elasticsearch.crt:ro,z
       - ./tls/certs/elasticsearch/elasticsearch.key:/usr/share/elasticsearch/config/elasticsearch.key:ro,z
-
     environment:
       node.name: elasticsearch2
       node.roles: master, data, ingest
       discovery.seed_hosts: elasticsearch1,elasticsearch3
-      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      cluster.initial_master_nodes: elasticsearch1,elasticsearch2,elasticsearch3
       ES_JAVA_OPTS: -Xms4g -Xmx4g
       # Bootstrap password.
       # Used to initialize the keystore during the initial startup of
@@ -125,7 +133,16 @@ services:
       - elk
     depends_on:
       - elasticsearch1
-    restart: unless-stopped
+    # restart: unless-stopped
+    deploy:
+      replicas: 1
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
 
   elasticsearch3:
     build:
@@ -139,12 +156,11 @@ services:
       - ./tls/certs/ca/ca.crt:/usr/share/elasticsearch/config/ca.crt:ro,z
       - ./tls/certs/elasticsearch/elasticsearch.crt:/usr/share/elasticsearch/config/elasticsearch.crt:ro,z
       - ./tls/certs/elasticsearch/elasticsearch.key:/usr/share/elasticsearch/config/elasticsearch.key:ro,z
-
     environment:
       node.name: elasticsearch3
       node.roles: master, data, ingest
       discovery.seed_hosts: elasticsearch1,elasticsearch2
-      cluster.initial_master: nodes=elasticsearch1,elasticsearch2,elasticsearch3
+      cluster.initial_master_nodes: elasticsearch1,elasticsearch2,elasticsearch3
       ES_JAVA_OPTS: -Xms4g -Xmx4g
       # Bootstrap password.
       # Used to initialize the keystore during the initial startup of
@@ -156,7 +172,16 @@ services:
       - elk
     depends_on:
       - elasticsearch2
-    restart: unless-stopped
+    # restart: unless-stopped
+    deploy:
+      replicas: 1
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
 
 
   kibana:
@@ -177,11 +202,11 @@ services:
     networks:
       - elk
     depends_on:
-      es01:
+      elasticsearch1:
         condition: service_healthy
-      es02:
+      elasticsearch2:
         condition: service_healthy
-      es03:
+      elasticsearch3:
         condition: service_healthy
     restart: unless-stopped
 
