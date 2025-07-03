@@ -17,7 +17,7 @@ metricbeat.autodiscover:
 
 metricbeat.modules:
 - module: elasticsearch
-  hosts: [ https://elasticsearch:9200 ]
+  hosts: ["https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200"]
   username: monitoring_internal
   password: ${MONITORING_INTERNAL_PASSWORD}
   ssl:
@@ -78,18 +78,10 @@ processors:
 logging.level: info
 logging.to_stderr: true
 
-monitoring:
-  enabled: true
-  elasticsearch:
-    hosts: [ https://elasticsearch:9200 ]
-    username: beats_system
-    password: ${BEATS_SYSTEM_PASSWORD}
-    ssl:
-      certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
-      verification_mode: certificate
+monitoring.enabled: false
 
 output.elasticsearch:
-  hosts: [ https://elasticsearch:9200 ]
+  hosts: ["https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200"]
   username: metricbeat_internal
   password: ${METRICBEAT_INTERNAL_PASSWORD}
   ssl:

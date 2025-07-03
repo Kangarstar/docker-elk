@@ -9,7 +9,7 @@ services:
     environment:
       node.name: elasticsearch1
       cluster.name: docker-cluster
-      node.roles: master,data,ingest
+      node.roles: master,data,ingest,remote_cluster_client
       discovery.seed_hosts: elasticsearch2,elasticsearch3
       cluster.initial_master_nodes: elasticsearch1,elasticsearch2,elasticsearch3
       network.host: 0.0.0.0
@@ -28,6 +28,7 @@ services:
       xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/elasticsearch.crt
       xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/ca.crt
       xpack.license.self_generated.type: basic
+      xpack.monitoring.collection.enabled: "false"
       ES_JAVA_OPTS: "-Xms4g -Xmx4g"
       ELASTIC_PASSWORD: "${ELASTIC_PASSWORD:-}"
     secrets:
@@ -77,6 +78,7 @@ services:
       xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/elasticsearch.crt
       xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/ca.crt
       xpack.license.self_generated.type: basic
+      xpack.monitoring.collection.enabled: "false"
       ES_JAVA_OPTS: "-Xms4g -Xmx4g"
       ELASTIC_PASSWORD: "${ELASTIC_PASSWORD:-}"
     secrets:
@@ -126,6 +128,7 @@ services:
       xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/elasticsearch.crt
       xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/ca.crt
       xpack.license.self_generated.type: basic
+      xpack.monitoring.collection.enabled: "false"
       ES_JAVA_OPTS: "-Xms4g -Xmx4g"
       ELASTIC_PASSWORD: "${ELASTIC_PASSWORD:-}"
     secrets:
@@ -167,10 +170,12 @@ services:
       TELEMETRY_OPTIN: "false"
       TELEMETRY_ALLOWCHANGINGOPTINSTATUS: "false"
       XPACK_APM_TELEMETRYCOLLECTIONENABLED: "false"
-      XPACK_MONITORING_UI_CCS_ENABLED: "false"
+      XPACK_MONITORING_UI__CCS__ENABLED: "false"
       XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: 3827bd200c5241863ed08386da2b40f9
       XPACK_REPORTING_ENCRYPTIONKEY: 78fc59a7ac1348b3d43a161d4c23bef9
       XPACK_SECURITY_ENCRYPTIONKEY: c97e31c7eb741bb2309ca5a5d798a2fc
+      MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED: "false"
+      XPACK_MONITORING_UI_ENABLED: "false"
     secrets:
       - source: elk_ca_crt
         target: /usr/share/kibana/config/ca.crt
@@ -183,6 +188,84 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  metricbeat:
+    image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
+    user: root
+    command:
+      - -e
+      - --system.hostfs=/hostfs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    environment:
+      METRICBEAT_INTERNAL_PASSWORD: ${METRICBEAT_INTERNAL_PASSWORD:-}
+      MONITORING_INTERNAL_PASSWORD: ${MONITORING_INTERNAL_PASSWORD:-}
+      BEATS_SYSTEM_PASSWORD: ${BEATS_SYSTEM_PASSWORD:-}
+    secrets:
+      - source: elk_ca_crt
+        target: /usr/share/metricbeat/ca.crt
+    configs:
+      - source: metricbeat_yml
+        target: /usr/share/metricbeat/metricbeat.yml
+    networks:
+      - elk
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  filebeat:
+    image: "docker.elastic.co/beats/filebeat:${ELASTIC_VERSION:-9.0.3}"
+    user: root
+    command:
+      - -e
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    environment:
+      FILEBEAT_INTERNAL_PASSWORD: ${FILEBEAT_INTERNAL_PASSWORD:-}
+      BEATS_SYSTEM_PASSWORD: ${BEATS_SYSTEM_PASSWORD:-}
+    secrets:
+      - source: elk_ca_crt
+        target: /usr/share/filebeat/ca.crt
+    configs:
+      - source: filebeat_yml
+        target: /usr/share/filebeat/filebeat.yml
+    networks:
+      - elk
+    deploy:
+      mode: global
       placement:
         constraints:
           - node.role == manager
@@ -215,4 +298,10 @@ secrets:
   elk_kibana_crt:
     external: true
   elk_kibana_key:
+    external: true
+
+configs:
+  metricbeat_yml:
+    external: true
+  filebeat_yml:
     external: true
