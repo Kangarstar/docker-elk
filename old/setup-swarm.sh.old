@@ -1,0 +1,103 @@
+#!/bin/bash
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}=== ELK Stack Swarm Setup ===${NC}"
+
+# Load environment variables
+if [ -f .env ]; then
+    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+    echo -e "${GREEN}✓ Loaded environment variables${NC}"
+else
+    echo -e "${RED}✗ .env file not found${NC}"
+    exit 1
+fi
+
+# Check if TLS certificates exist
+if [ ! -f "./tls/certs/ca/ca.crt" ]; then
+    echo -e "${YELLOW}⚠ TLS certificates not found. Running TLS setup...${NC}"
+    docker compose up tls -d
+    echo -e "${GREEN}✓ TLS certificates generated${NC}"
+else
+    echo -e "${GREEN}✓ TLS certificates found${NC}"
+fi
+
+# Create overlay network if it doesn't exist
+if ! docker network inspect elk >/dev/null 2>&1; then
+    echo -e "${YELLOW}Creating overlay network 'elk'...${NC}"
+    docker network create --driver overlay --attachable elk
+    echo -e "${GREEN}✓ Network 'elk' created${NC}"
+else
+    echo -e "${GREEN}✓ Network 'elk' already exists${NC}"
+fi
+
+# Label nodes for Elasticsearch placement (optional - for node affinity)
+#echo -e "${YELLOW}Setting up node labels for Elasticsearch placement...${NC}"
+#NODES=($(docker node ls --format "{{.Hostname}}" | head -3))
+
+#if [ ${#NODES[@]} -ge 3 ]; then
+#    docker node update --label-add elasticsearch1=true ${NODES[0]} || true
+#    docker node update --label-add elasticsearch2=true ${NODES[1]} || true
+#    docker node update --label-add elasticsearch3=true ${NODES[2]} || true
+#    echo -e "${GREEN}✓ Node labels set${NC}"
+#else
+#    echo -e "${YELLOW}⚠ Less than 3 nodes available. Elasticsearch nodes may be placed on same nodes.${NC}"
+#fi
+
+# Deploy the stack
+echo -e "${YELLOW}Deploying ELK stack...${NC}"
+docker stack deploy -d -c docker-stack.yml elk
+
+# Wait for Elasticsearch to be ready
+echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
+sleep 30
+
+# Check if we need to run setup
+MAX_RETRIES=30
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if curl -s --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ Elasticsearch is ready${NC}"
+        break
+    fi
+    echo -e "${YELLOW}Waiting for Elasticsearch... (${RETRY_COUNT}/${MAX_RETRIES})${NC}"
+    sleep 10
+    ((RETRY_COUNT++))
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo -e "${RED}✗ Elasticsearch failed to start within expected time${NC}"
+    exit 1
+fi
+
+# Run setup for users and roles
+echo -e "${YELLOW}Setting up Elasticsearch users and roles...${NC}"
+docker run --rm \
+    --network elk \
+    -v "$(pwd)/setup/entrypoint.sh:/entrypoint.sh:ro" \
+    -v "$(pwd)/setup/lib.sh:/lib.sh:ro" \
+    -v "$(pwd)/setup/roles:/roles:ro" \
+    -v "$(pwd)/tls/certs/ca/ca.crt:/ca.crt:ro" \
+    -e ELASTIC_PASSWORD="${ELASTIC_PASSWORD}" \
+    -e LOGSTASH_INTERNAL_PASSWORD="${LOGSTASH_INTERNAL_PASSWORD}" \
+    -e KIBANA_SYSTEM_PASSWORD="${KIBANA_SYSTEM_PASSWORD}" \
+    -e METRICBEAT_INTERNAL_PASSWORD="${METRICBEAT_INTERNAL_PASSWORD}" \
+    -e FILEBEAT_INTERNAL_PASSWORD="${FILEBEAT_INTERNAL_PASSWORD}" \
+    -e HEARTBEAT_INTERNAL_PASSWORD="${HEARTBEAT_INTERNAL_PASSWORD}" \
+    -e MONITORING_INTERNAL_PASSWORD="${MONITORING_INTERNAL_PASSWORD}" \
+    -e BEATS_SYSTEM_PASSWORD="${BEATS_SYSTEM_PASSWORD}" \
+    --entrypoint="/bin/bash" \
+    docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.11.0} \
+    /entrypoint.sh
+
+echo -e "${GREEN}✓ Setup completed successfully!${NC}"
+echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
+echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
+echo -e "${YELLOW}Access Elasticsearch at: https://localhost:9200${NC}"

@@ -17,7 +17,7 @@ users_passwords=(
 	[filebeat_internal]="${FILEBEAT_INTERNAL_PASSWORD:-}"
 	[heartbeat_internal]="${HEARTBEAT_INTERNAL_PASSWORD:-}"
 	[monitoring_internal]="${MONITORING_INTERNAL_PASSWORD:-}"
-	[beats_system]="${BEATS_SYSTEM_PASSWORD=:-}"
+	[beats_system]="${BEATS_SYSTEM_PASSWORD:-}"  # Fixed: removed extra '=' before ':-'
 )
 
 declare -A users_roles
