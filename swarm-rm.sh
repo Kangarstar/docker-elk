@@ -9,7 +9,7 @@ echo "⏳ Waiting for all containers to be removed..."
 # Wait until no containers (any state) with the stack label exist
 while docker container ls -a --filter "label=com.docker.stack.namespace=$STACK_NAME" --format '{{.ID}}' | grep -q .; do
     echo "⌛ Still waiting for containers to be removed..."
-    sleep 2
+    sleep 4
 done
 
 echo "✅ All containers for stack '$STACK_NAME' have been removed."
