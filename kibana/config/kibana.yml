@@ -4,7 +4,7 @@
 #
 server.name: kibana
 server.host: 0.0.0.0
-elasticsearch.hosts: [ https://elasticsearch:9200 ]
+elasticsearch.hosts: [ "https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200" ]
 
 monitoring.ui.container.elasticsearch.enabled: true
 monitoring.ui.container.logstash.enabled: true
@@ -61,7 +61,7 @@ xpack.fleet.outputs:
   - id: fleet-default-output
     name: default
     type: elasticsearch
-    hosts: [ https://elasticsearch:9200 ]
+    hosts: [ "https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200" ]
     # Set to output of 'docker compose up tls'. Example:
     #ca_trusted_fingerprint: 846637d1bb82209640d31b79869a370c8e47c2dc15c7eafd4f3d615e51e3d503
     is_default: true
