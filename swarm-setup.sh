@@ -58,6 +58,17 @@ docker secret create elk_elasticsearch_key ./tls/certs/elasticsearch/elasticsear
 docker secret create elk_kibana_crt ./tls/certs/kibana/kibana.crt
 docker secret create elk_kibana_key ./tls/certs/kibana/kibana.key
 
+# Remove existing configs if they exist (ignore errors)
+docker config rm kibana_yml 2>/dev/null || true
+docker config rm metricbeat_yml 2>/dev/null || true
+docker config rm filebeat_yml 2>/dev/null || true
+
+
+# Create new configs
+docker config create kibana_yml ./kibana/config/kibana.yml
+docker config create metricbeat_yml ./extensions/metricbeat/config/metricbeat.yml
+docker config create filebeat_yml ./extensions/filebeat/config/filebeat.yml
+
 echo -e "${GREEN}✓ Docker secrets updated${NC}"
 
 # Create overlay network if it doesn't exist
