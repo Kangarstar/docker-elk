@@ -201,6 +201,53 @@ services:
         max_attempts: 3
         window: 120s
 
+  fleet-server:
+    image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
+    # Run as 'root' instead of 'elastic-agent' (uid 1000) to allow reading
+    # 'docker.sock' and the host's filesystem.
+    user: root
+    volumes:
+      - fleet-server:/usr/share/elastic-agent/state:Z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # (!) TLS certificates. Generate using the 'tls' service.
+    secrets:
+      - source: elk_ca_crt
+        target: /usr/share/elastic-agent/ca.crt
+      - source: elk_fleet_crt
+        target: /usr/share/elastic-agent/fleet-server.crt
+      - source: elk_fleet_key
+        target: /usr/share/elastic-agent/fleet-server.key
+    environment:
+      FLEET_SERVER_ENABLE: '1'
+      FLEET_SERVER_HOST: 0.0.0.0
+      FLEET_SERVER_POLICY_ID: fleet-server-policy
+      FLEET_URL: https://fleet-server:8220
+      FLEET_SERVER_CERT: /usr/share/elastic-agent/fleet-server.crt
+      FLEET_SERVER_CERT_KEY: /usr/share/elastic-agent/fleet-server.key
+      #FLEET_SERVER_INSECURE: "true"
+      # Use the HTTPS scheme if the Kibana server has TLS enabled (disabled by default)
+      KIBANA_HOST: https://kibana:5601
+      ELASTICSEARCH_HOST: https://elasticsearch:9200
+      ELASTICSEARCH_CA: /usr/share/elastic-agent/ca.crt
+      # Fleet plugin in Kibana
+      KIBANA_FLEET_SETUP: '1'
+      # Enrollment.
+      # (a) Auto-enroll using basic authentication
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-}
+      # (b) Enroll using a pre-generated service token
+      #FLEET_SERVER_SERVICE_TOKEN: <service_token>
+    ports:
+      - 8220:8220
+    hostname: fleet-server
+    restart: on-failure
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+      - kibana
+
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
     user: root
@@ -287,6 +334,7 @@ volumes:
   elasticsearch1:
   elasticsearch2:
   elasticsearch3:
+  fleet-server:
 
 secrets:
   elk_ca_crt:
@@ -298,6 +346,10 @@ secrets:
   elk_kibana_crt:
     external: true
   elk_kibana_key:
+    external: true
+  elk_fleet_crt:
+    external: true
+  elk_fleet_key:
     external: true
 
 configs:
