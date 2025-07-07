@@ -228,7 +228,7 @@ services:
       #FLEET_SERVER_INSECURE: "true"
       # Use the HTTPS scheme if the Kibana server has TLS enabled (disabled by default)
       KIBANA_HOST: https://kibana:5601
-      ELASTICSEARCH_HOST: https://elasticsearch:9200
+      ELASTICSEARCH_HOST: https://elasticsearch1:9200
       ELASTICSEARCH_CA: /usr/share/elastic-agent/ca.crt
       # Fleet plugin in Kibana
       KIBANA_FLEET_SETUP: '1'
@@ -241,7 +241,6 @@ services:
     ports:
       - 8220:8220
     hostname: fleet-server
-    restart: on-failure
     networks:
       - elk
     deploy:
@@ -260,7 +259,9 @@ services:
         max_attempts: 3
         window: 120s
     depends_on:
-      - elasticsearch
+      - elasticsearch1
+      - elasticsearch2
+      - elasticsearch3
       - kibana
 
   metricbeat:
