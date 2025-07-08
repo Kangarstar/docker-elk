@@ -14,13 +14,13 @@ done
 
 echo "✅ All containers for stack '$STACK_NAME' have been removed."
 
-echo "🔍 Finding volumes associated with stack '$STACK_NAME'..."
-VOLUMES=$(docker volume ls --format '{{.Name}}' | grep "^${STACK_NAME}_")
+# echo "🔍 Finding volumes associated with stack '$STACK_NAME'..."
+# VOLUMES=$(docker volume ls --format '{{.Name}}' | grep "^${STACK_NAME}_")
 
-if [ -z "$VOLUMES" ]; then
-    echo "✅ No volumes found for stack '$STACK_NAME'."
-else
-    echo "🗑 Removing volumes:"
-    echo "$VOLUMES" | xargs -r docker volume rm
-    echo "✅ Volumes removed."
-fi
+# if [ -z "$VOLUMES" ]; then
+#     echo "✅ No volumes found for stack '$STACK_NAME'."
+# else
+#     echo "🗑 Removing volumes:"
+#     echo "$VOLUMES" | xargs -r docker volume rm
+#     echo "✅ Volumes removed."
+# fi
