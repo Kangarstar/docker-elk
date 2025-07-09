@@ -50,6 +50,8 @@ docker secret rm elk_elasticsearch_crt 2>/dev/null || true
 docker secret rm elk_elasticsearch_key 2>/dev/null || true
 docker secret rm elk_kibana_crt 2>/dev/null || true
 docker secret rm elk_kibana_key 2>/dev/null || true
+docker secret rm elk_fleet_crt 2>/dev/null || true
+docker secret rm elk_fleet_key 2>/dev/null || true
 
 # Create new secrets
 docker secret create elk_ca_crt ./tls/certs/ca/ca.crt
