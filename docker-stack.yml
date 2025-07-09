@@ -158,24 +158,27 @@ services:
       - "5601:5601"
     environment:
       KIBANA_SYSTEM_PASSWORD: "${KIBANA_SYSTEM_PASSWORD:-}"
-      ELASTICSEARCH_HOSTS: https://elasticsearch1:9200
-      ELASTICSEARCH_USERNAME: kibana_system
-      ELASTICSEARCH_PASSWORD: "${KIBANA_SYSTEM_PASSWORD:-}"
-      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: /usr/share/kibana/config/ca.crt
-      SERVER_SSL_ENABLED: "true"
-      SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/kibana.crt
-      SERVER_SSL_KEY: /usr/share/kibana/config/kibana.key
-      SERVER_NAME: kibana
-      SERVER_HOST: 0.0.0.0
-      TELEMETRY_OPTIN: "false"
-      TELEMETRY_ALLOWCHANGINGOPTINSTATUS: "false"
-      XPACK_APM_TELEMETRYCOLLECTIONENABLED: "false"
-      XPACK_MONITORING_UI__CCS__ENABLED: "false"
-      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: 3827bd200c5241863ed08386da2b40f9
-      XPACK_REPORTING_ENCRYPTIONKEY: 78fc59a7ac1348b3d43a161d4c23bef9
-      XPACK_SECURITY_ENCRYPTIONKEY: c97e31c7eb741bb2309ca5a5d798a2fc
-      MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED: "false"
-      XPACK_MONITORING_UI_ENABLED: "false"
+      # ELASTICSEARCH_HOSTS: https://elasticsearch1:9200
+      # ELASTICSEARCH_USERNAME: kibana_system
+      # ELASTICSEARCH_PASSWORD: "${KIBANA_SYSTEM_PASSWORD:-}"
+      # ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: /usr/share/kibana/config/ca.crt
+      # SERVER_SSL_ENABLED: "true"
+      # SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/kibana.crt
+      # SERVER_SSL_KEY: /usr/share/kibana/config/kibana.key
+      # SERVER_NAME: kibana
+      # SERVER_HOST: 0.0.0.0
+      # TELEMETRY_OPTIN: "false"
+      # TELEMETRY_ALLOWCHANGINGOPTINSTATUS: "false"
+      # XPACK_APM_TELEMETRYCOLLECTIONENABLED: "false"
+      # XPACK_MONITORING_UI__CCS__ENABLED: "false"
+      # XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: 3827bd200c5241863ed08386da2b40f9
+      # XPACK_REPORTING_ENCRYPTIONKEY: 78fc59a7ac1348b3d43a161d4c23bef9
+      # XPACK_SECURITY_ENCRYPTIONKEY: c97e31c7eb741bb2309ca5a5d798a2fc
+      # MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED: "false"
+      # XPACK_MONITORING_UI_ENABLED: "false"
+    configs:
+      - source: kibana_yml
+        target: /usr/share/kibana/config/kibana.yml
     secrets:
       - source: elk_ca_crt
         target: /usr/share/kibana/config/ca.crt
@@ -200,6 +203,77 @@ services:
         delay: 5s
         max_attempts: 3
         window: 120s
+
+  fleet-server:
+    image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
+    user: root
+    volumes:
+      - fleet-server:/usr/share/elastic-agent/state:Z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    secrets:
+      - source: elk_ca_crt
+        target: /usr/share/elastic-agent/ca.crt
+      - source: elk_fleet_crt
+        target: /usr/share/elastic-agent/fleet-server.crt
+      - source: elk_fleet_key
+        target: /usr/share/elastic-agent/fleet-server.key
+    environment:
+      FLEET_SERVER_ENABLE: '1'
+      FLEET_SERVER_HOST: 0.0.0.0
+      FLEET_SERVER_PORT: '8220'
+      FLEET_SERVER_POLICY_ID: fleet-server-policy
+      FLEET_URL: https://fleet-server:8220
+      FLEET_SERVER_CERT: /usr/share/elastic-agent/fleet-server.crt
+      FLEET_SERVER_CERT_KEY: /usr/share/elastic-agent/fleet-server.key
+      FLEET_CA: /usr/share/elastic-agent/ca.crt
+      KIBANA_HOST: https://kibana:5601
+      KIBANA_CA: /usr/share/elastic-agent/ca.crt
+      ELASTICSEARCH_HOST: https://elasticsearch1:9200
+      ELASTICSEARCH_CA: /usr/share/elastic-agent/ca.crt
+      ELASTICSEARCH_USERNAME: elastic
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD:-}
+      # Fleet plugin in Kibana
+      KIBANA_FLEET_SETUP: '1'
+      KIBANA_FLEET_USERNAME: elastic
+      KIBANA_FLEET_PASSWORD: ${ELASTIC_PASSWORD:-}
+      # Additional Fleet Server settings
+      # FLEET_SERVER_SERVICE_TOKEN_PATH: ""
+      # FLEET_SERVER_SERVICE_TOKEN: ""
+      # FLEET_SERVER_INSECURE: "false"
+      # Logging
+      FLEET_SERVER_LOG_LEVEL: info
+    ports:
+      - target: 8220
+        published: 8220
+        protocol: tcp
+        mode: host
+    hostname: fleet-server
+    networks:
+      - elk
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f --insecure https://localhost:8220/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+        window: 120s
+
 
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
@@ -287,6 +361,7 @@ volumes:
   elasticsearch1:
   elasticsearch2:
   elasticsearch3:
+  fleet-server:
 
 secrets:
   elk_ca_crt:
@@ -299,8 +374,14 @@ secrets:
     external: true
   elk_kibana_key:
     external: true
+  elk_fleet_crt:
+    external: true
+  elk_fleet_key:
+    external: true
 
 configs:
+  kibana_yml:
+    external: true
   metricbeat_yml:
     external: true
   filebeat_yml:
