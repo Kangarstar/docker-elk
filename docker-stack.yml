@@ -207,7 +207,7 @@ services:
   fleet-server:
       image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
       user: root
-      command: >
+      entrypoint: >
         bash -c "
           echo 'Waiting for Kibana to be available...';
           until curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; do
@@ -215,7 +215,7 @@ services:
             sleep 10;
           done;
           echo 'Kibana is ready, starting Fleet Server...';
-          exec /usr/local/bin/docker-entrypoint -e
+          exec elastic-agent container
         "
       depends_on:
         - kibana
