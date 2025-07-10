@@ -1,6 +1,6 @@
 # Elastic stack (ELK) on Docker
 
-[![Elastic Stack version](https://img.shields.io/badge/Elastic%20Stack-9.0.2-00bfb3?style=flat&logo=elastic-stack)](https://www.elastic.co/blog/category/releases)
+[![Elastic Stack version](https://img.shields.io/badge/Elastic%20Stack-9.0.3-00bfb3?style=flat&logo=elastic-stack)](https://www.elastic.co/blog/category/releases)
 
 Run the latest version of the [Elastic stack][elk-stack] with Docker and Docker Compose.
 
@@ -13,7 +13,6 @@ Based on the [official Docker images][elastic-docker] from Elastic:
 * [Logstash](https://github.com/elastic/logstash/tree/main/docker)
 * [Kibana](https://github.com/elastic/kibana/tree/main/src/dev/build/tasks/os_packages/docker_generator)
 
-Other available stack variants:
 
 > [!IMPORTANT]
 > [Platinum][subscriptions] features are enabled by default for a [trial][license-mngmt] duration of **30 days**. After
@@ -26,33 +25,23 @@ Other available stack variants:
 ## tl;dr
 
 ```sh
-docker compose up tls
+cd /opt
 ```
 
 ```sh
-docker compose up setup
+git clone ssh://git@ssh.github.com:443/NTE-Airport-DSI/docker-elk.git
 ```
 
 ```sh
-docker compose up
+cd /docker-elk
 ```
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/6f67cbc0-ddee-44bf-8f4d-7fd2d70f5217">
-  <img alt="Animated demo" src="https://github.com/user-attachments/assets/501a340a-e6df-4934-90a2-6152b462c14a">
-</picture>
+```sh
+sudo bash swarm-setup.sh
+```
 
----
 
-## Philosophy
 
-We aim at providing the simplest possible entry into the Elastic stack for anybody who feels like experimenting with
-this powerful combo of technologies. This project's default configuration is purposely minimal and unopinionated. It
-does not rely on any external dependency, and uses as little custom automation as necessary to get things up and
-running.
-
-Instead, we believe in good documentation so that you can use this repository as a template, tweak it, and make it _your
-own_. [sherifabdlnaby/elastdocker][elastdocker] is one example among others of project that builds upon this idea.
 
 ---
 
@@ -280,9 +269,6 @@ docker compose down -v
 
 ### Version selection
 
-This repository stays aligned with the latest version of the Elastic stack. The `main` branch tracks the current major
-version (9.x).
-
 To use a different version of the core Elastic components, simply change the version number inside the [`.env`](.env)
 file. If you are upgrading an existing stack, remember to rebuild all container images using the `docker compose build`
 command.
@@ -353,18 +339,6 @@ logstash:
 Please refer to the following documentation page for more details about how to configure Logstash inside Docker
 containers: [Configuring Logstash for Docker][ls-docker].
 
-### How to disable paid features
-
-You can cancel an ongoing trial before its expiry date — and thus revert to a basic license — either from the [License
-Management][license-mngmt] panel of Kibana, or using Elasticsearch's `start_basic` [Licensing API][license-apis]. Please
-note that the second option is the only way to recover access to Kibana if the license isn't either switched to `basic`
-or upgraded before the trial's expiry date.
-
-Changing the license type by switching the value of Elasticsearch's `xpack.license.self_generated.type` setting from
-`trial` to `basic` (see [License settings][license-settings]) will only work **if done prior to the initial setup.**
-After a trial has been started, the loss of features from `trial` to `basic` _must_ be acknowledged using one of the two
-methods described in the first paragraph.
-
 ### How to scale out the Elasticsearch cluster
 
 Follow the instructions from the Wiki: [Scaling out Elasticsearch](https://github.com/deviantony/docker-elk/wiki/Elasticsearch-cluster)
@@ -395,8 +369,9 @@ tls/certs/elasticsearch
 
 and run the `tls` service again.
 
-Alternatively, you can refer to the documentation page [Manually configure security][es-tls] from the Elastic
-documentation to generate certificates and private keys manually.
+```sh
+$ sudo docker compose up tls -d
+```
 
 ### How to re-execute the setup
 
@@ -404,16 +379,7 @@ To run the setup container again and re-initialize all users for which a passwor
 simply "up" the `setup` Compose service again:
 
 ```console
-$ docker compose up setup
- ⠿ Container docker-elk-elasticsearch-1  Running
- ⠿ Container docker-elk-setup-1          Created
-Attaching to docker-elk-setup-1
-...
-docker-elk-setup-1  | [+] User 'monitoring_internal'
-docker-elk-setup-1  |    ⠿ User does not exist, creating
-docker-elk-setup-1  | [+] User 'beats_system'
-docker-elk-setup-1  |    ⠿ User exists, setting password
-docker-elk-setup-1 exited with code 0
+
 ```
 
 ### How to reset a password programmatically
@@ -430,24 +396,6 @@ curl -XPOST -D- 'https://localhost:9200/_security/user/elastic/_password' \
     -u elastic:<your current elastic password> \
     -d '{"password" : "<your new password>"}'
 ```
-
-## Extensibility
-
-### How to add plugins
-
-To add plugins to any ELK component you have to:
-
-1. Add a `RUN` statement to the corresponding `Dockerfile` (eg. `RUN logstash-plugin install logstash-filter-json`)
-1. Add the associated plugin code configuration to the service configuration (eg. Logstash input/output)
-1. Rebuild the images using the `docker compose build` command
-
-### How to enable the provided extensions
-
-A few extensions are available inside the [`extensions`](extensions) directory. These extensions provide features which
-are not part of the standard Elastic stack, but can be used to enrich it with extra integrations.
-
-The documentation for these extensions is provided inside each individual subdirectory, on a per-extension basis. Some
-of them require manual changes to the default ELK configuration.
 
 ## JVM tuning
 
