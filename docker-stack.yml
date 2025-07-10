@@ -207,6 +207,16 @@ services:
   fleet-server:
       image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
       user: root
+      command: >
+        bash -c "
+          echo 'Waiting for Kibana to be available...';
+          until curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; do
+            echo 'Kibana not ready yet, waiting 10 seconds...';
+            sleep 10;
+          done;
+          echo 'Kibana is ready, starting Fleet Server...';
+          exec /usr/local/bin/docker-entrypoint -e
+        "
       depends_on:
         - kibana
         - elasticsearch1
@@ -254,12 +264,6 @@ services:
       hostname: fleet-server
       networks:
         - elk
-      healthcheck:
-        test: ["CMD-SHELL", "curl -f --insecure https://localhost:8220/api/status || exit 1"]
-        interval: 30s
-        timeout: 10s
-        retries: 5
-        start_period: 120s  # Increased start period to allow more time for Kibana
       deploy:
         mode: replicated
         replicas: 1
@@ -270,12 +274,11 @@ services:
           parallelism: 1
           delay: 10s
           order: start-first
-          failure_action: rollback
         restart_policy:
           condition: on-failure
           delay: 30s
-          max_attempts: 5  # Increased max attempts
-          window: 180s     # Increased window
+          max_attempts: 3  # Increased max attempts
+          window: 120s  # Increased window
 
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
