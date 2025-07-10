@@ -50,6 +50,8 @@ docker secret rm elk_elasticsearch_crt 2>/dev/null || true
 docker secret rm elk_elasticsearch_key 2>/dev/null || true
 docker secret rm elk_kibana_crt 2>/dev/null || true
 docker secret rm elk_kibana_key 2>/dev/null || true
+docker secret rm elk_fleet_crt 2>/dev/null || true
+docker secret rm elk_fleet_key 2>/dev/null || true
 
 # Create new secrets
 docker secret create elk_ca_crt ./tls/certs/ca/ca.crt
@@ -57,6 +59,8 @@ docker secret create elk_elasticsearch_crt ./tls/certs/elasticsearch/elasticsear
 docker secret create elk_elasticsearch_key ./tls/certs/elasticsearch/elasticsearch.key
 docker secret create elk_kibana_crt ./tls/certs/kibana/kibana.crt
 docker secret create elk_kibana_key ./tls/certs/kibana/kibana.key
+docker secret create elk_fleet_crt ./tls/certs/fleet-server/fleet-server.crt
+docker secret create elk_fleet_key ./tls/certs/fleet-server/fleet-server.key
 
 # Remove existing configs if they exist (ignore errors)
 docker config rm kibana_yml 2>/dev/null || true
