@@ -6,12 +6,12 @@ api.http.host: 0.0.0.0
 
 node.name: logstash
 
-# xpack.management.enabled: true
-# xpack.management.elasticsearch.hosts: [ "https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200" ]
-# xpack.management.elasticsearch.username: logstash_system
-# xpack.management.elasticsearch.password: ${LOGSTASH_SYSTEM_PASSWORD}
-# xpack.management.elasticsearch.ssl.certificate_authority: config/ca.crt
-# xpack.management.elasticsearch.ssl.verification_mode: certificate
+xpack.management.enabled: true
+xpack.management.elasticsearch.hosts: [ "https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200" ]
+xpack.management.elasticsearch.username: logstash_system
+xpack.management.elasticsearch.password: ${LOGSTASH_INTERNAL_PASSWORD}
+xpack.management.elasticsearch.ssl.certificate_authority: config/ca.crt
+xpack.management.elasticsearch.ssl.verification_mode: certificate
 
 ## Logstash pipeline settings
 #
