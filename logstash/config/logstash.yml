@@ -13,6 +13,8 @@ xpack.management.elasticsearch.password: ${LOGSTASH_INTERNAL_PASSWORD}
 xpack.management.elasticsearch.ssl.certificate_authority: config/ca.crt
 xpack.management.elasticsearch.ssl.verification_mode: certificate
 
+
+
 ## Logstash pipeline settings
 #
 path.config: /usr/share/logstash/pipeline.conf

@@ -39,7 +39,7 @@ metricbeat.modules:
   enabled: true
 
 - module: logstash
-  hosts: ["https://logstash:9600"]
+  hosts: ["http://logstash:9600"]
   username: monitoring_internal
   metricsets: ["node", "node_stats"]
   password: ${MONITORING_INTERNAL_PASSWORD}
