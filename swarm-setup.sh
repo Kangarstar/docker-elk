@@ -66,11 +66,15 @@ docker secret create elk_fleet_key ./tls/certs/fleet-server/fleet-server.key
 docker config rm kibana_yml 2>/dev/null || true
 docker config rm metricbeat_yml 2>/dev/null || true
 docker config rm filebeat_yml 2>/dev/null || true
+docker config rm logstash_yml 2>/dev/null || true
+docker config rm pipelin_conf 2>/dev/null || true
 
 # Create new configs
 docker config create kibana_yml ./kibana/config/kibana.yml
 docker config create metricbeat_yml ./extensions/metricbeat/config/metricbeat.yml
 docker config create filebeat_yml ./extensions/filebeat/config/filebeat.yml
+docker config create logstash_yml ./logstash/config/logstash.yml
+docker config create pipeline_conf ./logstash/pipeline/logstash.conf
 
 echo -e "${GREEN}✓ Docker secrets updated${NC}"
 
