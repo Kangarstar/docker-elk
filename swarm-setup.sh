@@ -67,7 +67,7 @@ docker config rm kibana_yml 2>/dev/null || true
 docker config rm metricbeat_yml 2>/dev/null || true
 docker config rm filebeat_yml 2>/dev/null || true
 docker config rm logstash_yml 2>/dev/null || true
-docker config rm pipelin_conf 2>/dev/null || true
+docker config rm pipeline_conf 2>/dev/null || true
 
 # Create new configs
 docker config create kibana_yml ./kibana/config/kibana.yml
