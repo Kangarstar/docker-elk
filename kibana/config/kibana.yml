@@ -4,6 +4,9 @@
 #
 server.name: kibana
 server.host: 0.0.0.0
+
+server.publicBaseUrl: "https://kibana.aero44.local"
+
 elasticsearch.hosts: [ "https://elasticsearch1:9200", "https://elasticsearch2:9200", "https://elasticsearch3:9200" ]
 
 monitoring.ui.container.elasticsearch.enabled: true
