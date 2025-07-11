@@ -218,7 +218,7 @@ services:
       - source: logstash_yml
         target: /usr/share/logstash/config/logstash.yml
       - source: pipeline_conf
-        target: /usr/share/logstash/pipeline
+        target: /usr/share/logstash/pipeline.conf
     secrets:
       - source: elk_ca_crt
         target: /usr/share/logstash/config/ca.crt
