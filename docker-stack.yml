@@ -221,7 +221,7 @@ services:
         target: /usr/share/logstash/pipeline
     secrets:
       - source: elk_ca_crt
-        target: /usr/share/kibana/config/ca.crt
+        target: /usr/share/logstash/config/ca.crt
     networks:
       - elk
     deploy:
