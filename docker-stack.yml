@@ -222,7 +222,6 @@ services:
     secrets:
       - source: elk_ca_crt
         target: /usr/share/kibana/config/ca.crt
-    hostname: fleet-server
     networks:
       - elk
     deploy:
@@ -240,8 +239,6 @@ services:
         delay: 30s
         max_attempts: 3
         window: 120s
-
-    restart: unless-stopped
 
   fleet-server:
       image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
@@ -300,7 +297,6 @@ services:
           published: 8220
           protocol: tcp
           mode: host
-      hostname: fleet-server
       networks:
         - elk
       deploy:
@@ -429,4 +425,8 @@ configs:
   metricbeat_yml:
     external: true
   filebeat_yml:
+    external: true
+  logstash_yml:
+    external: true
+  pipeline_conf:
     external: true
