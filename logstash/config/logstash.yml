@@ -15,5 +15,5 @@ xpack.management.elasticsearch.ssl.verification_mode: certificate
 
 ## Logstash pipeline settings
 #
-path.config: /usr/share/logstash/pipeline
+path.config: /usr/share/logstash/pipeline.conf
 path.logs: /usr/share/logstash/logs
