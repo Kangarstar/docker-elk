@@ -38,11 +38,10 @@ metricbeat.modules:
   period: 10s
   enabled: true
 
-
 - module: logstash
   hosts: ["https://logstash:9600"]
   username: monitoring_internal
-  # metricsets: ["node", "node_stats"]
+  metricsets: ["node", "node_stats"]
   password: ${MONITORING_INTERNAL_PASSWORD}
   ssl:
     certificate_authorities: ["/usr/share/metricbeat/ca.crt"]
