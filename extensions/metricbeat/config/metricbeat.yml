@@ -38,6 +38,19 @@ metricbeat.modules:
   period: 10s
   enabled: true
 
+- module: logstash
+  hosts: ["http://logstash:9600"]
+  username: monitoring_internal
+  metricsets: ["node", "node_stats"]
+  password: ${MONITORING_INTERNAL_PASSWORD}
+  ssl:
+    certificate_authorities: ["/usr/share/metricbeat/ca.crt"]
+    verification_mode: certificate
+  xpack.enabled: true
+  period: 10s
+  enabled: true
+
+
 - module: docker
   metricsets:
     - container

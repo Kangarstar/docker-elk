@@ -204,6 +204,52 @@ services:
         max_attempts: 3
         window: 120s
 
+  logstash:
+    image: "docker.elastic.co/logstash/logstash:${ELASTIC_VERSION:-9.0.3}"
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for Kibana to be available...';
+        until curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; do
+          echo 'Kibana not ready yet, waiting 10 seconds...';
+          sleep 10;
+        done;
+        echo 'Kibana is ready, starting Logstash...';
+        exec /usr/share/logstash/bin/logstash
+      "
+    ports:
+      - 5044:5044
+      - 50000:50000/tcp
+      - 50000:50000/udp
+      - 9600:9600
+    environment:
+      LS_JAVA_OPTS: -Xms512m -Xmx512m
+      LOGSTASH_INTERNAL_PASSWORD: ${LOGSTASH_INTERNAL_PASSWORD:-}
+    configs:
+      - source: logstash_yml
+        target: /usr/share/logstash/config/logstash.yml
+      - source: pipeline_conf
+        target: /usr/share/logstash/pipeline.conf
+    secrets:
+      - source: elk_ca_crt
+        target: /usr/share/logstash/config/ca.crt
+    networks:
+      - elk
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+        window: 120s
+
   fleet-server:
       image: "docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION:-9.0.3}"
       user: root
@@ -261,7 +307,6 @@ services:
           published: 8220
           protocol: tcp
           mode: host
-      hostname: fleet-server
       networks:
         - elk
       deploy:
@@ -277,8 +322,8 @@ services:
         restart_policy:
           condition: on-failure
           delay: 30s
-          max_attempts: 3  # Increased max attempts
-          window: 120s  # Increased window
+          max_attempts: 3
+          window: 120s
 
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
@@ -390,4 +435,8 @@ configs:
   metricbeat_yml:
     external: true
   filebeat_yml:
+    external: true
+  logstash_yml:
+    external: true
+  pipeline_conf:
     external: true
