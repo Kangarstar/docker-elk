@@ -1,24 +1,17 @@
-# Elastic stack (ELK) on Docker
+# Elastic stack (ELK) sur Docker Swarm
 
 [![Elastic Stack version](https://img.shields.io/badge/Elastic%20Stack-9.0.3-00bfb3?style=flat&logo=elastic-stack)](https://www.elastic.co/blog/category/releases)
 
-Run the latest version of the [Elastic stack][elk-stack] with Docker and Docker Compose.
+Ce projet permet de déployer [Elastic stack][elk-stack] en cluster avec Docker et Docker Swarm.
 
-It gives you the ability to analyze any data set by using the searching/aggregation capabilities of Elasticsearch and
-the visualization power of Kibana.
+Il vous permettra d'analyser n'importe quel ensemble de données en utilisant les capacités de recherche/agrégation d'Elasticsearch et la puissance de visualisation de Kibana.
 
-Based on the [official Docker images][elastic-docker] from Elastic:
+Basé sur les  [images Docker officielles][elastic-docker] d' Elastic :
 
 * [Elasticsearch](https://github.com/elastic/elasticsearch/tree/main/distribution/docker)
 * [Logstash](https://github.com/elastic/logstash/tree/main/docker)
 * [Kibana](https://github.com/elastic/kibana/tree/main/src/dev/build/tasks/os_packages/docker_generator)
 
-
-> [!IMPORTANT]
-> [Platinum][subscriptions] features are enabled by default for a [trial][license-mngmt] duration of **30 days**. After
-> this evaluation period, you will retain access to all the free features included in the Open Basic license seamlessly,
-> without manual intervention required, and without losing any data. Refer to the [How to disable paid
-> features](#how-to-disable-paid-features) section to opt out of this behaviour.
 
 ---
 
@@ -83,13 +76,12 @@ sudo bash swarm-setup.sh
 
 * [Docker Engine][docker-install] version **18.06.0** or newer
 * [Docker Compose][compose-install] version **2.0.0** or newer
-* 1.5 GB of RAM
 
 > [!NOTE]
 > Especially on Linux, make sure your user has the [required permissions][linux-postinstall] to interact with the Docker
 > daemon.
 
-By default, the stack exposes the following ports:
+Par défaut, le stack exposes ces ports:
 
 * 5044: Logstash Beats input
 * 50000: Logstash TCP input
@@ -97,40 +89,25 @@ By default, the stack exposes the following ports:
 * 9200: Elasticsearch HTTP
 * 9300: Elasticsearch TCP transport
 * 5601: Kibana
+* 8220: Fleet-server
 
 > [!WARNING]
-> Elasticsearch's [bootstrap checks][bootstrap-checks] were purposely disabled to facilitate the setup of the Elastic
-> stack in development environments. For production setups, we recommend users to set up their host according to the
-> instructions from the Elasticsearch documentation: [Important System Configuration][es-sys-config].
-
-### Docker Desktop
-
-#### Windows
-
-If you are using the legacy Hyper-V mode of _Docker Desktop for Windows_, ensure [File Sharing][win-filesharing] is
-enabled for the `C:` drive.
-
-#### macOS
-
-The default configuration of _Docker Desktop for Mac_ allows mounting files from `/Users/`, `/Volume/`, `/private/`,
-`/tmp` and `/var/folders` exclusively. Make sure the repository is cloned in one of those locations or follow the
-instructions from the [documentation][mac-filesharing] to add more locations.
 
 ## Usage
 
 > [!WARNING]
-> You must rebuild the stack images with `docker compose build` whenever you switch branch or update the
-> [version](#version-selection) of an already existing stack.
+> Il faut réinitialiser le cluster en cas de montée de
+> [version](#version-selection).
 
 ### Bringing up the stack
 
-Clone this repository onto the Docker host that will run the stack with the command below:
+Cloner ce repository sur le premier hôte Docker Swarm du cluster. Il va déployer le stack avec les commandes ci-dessous:
 
 ```sh
 git clone https://github.com/NTE-Airport-DSI/docker-elk.git
 ```
 
-Then, generate X.509 certificates and private keys to enable secure communications over TLS between components:
+Ensuite, generer les certificats X.509 pour activer les communications en TLS entre composants:
 
 ```sh
 docker compose up tls
@@ -142,27 +119,32 @@ docker compose up tls
 > or re-generate them at a later time, refer to [How to re-generate TLS
 > certificates](#how-to-re-generate-tls-certificates).
 
-After TLS certificates have been generated, initialize the Elasticsearch users and groups required by docker-elk by
-executing the command:
+Une fois que les certificats TLS sont générés, initialiser le les utilisateurs, groupes et cluster avec cette commande: 
 
 ```sh
-docker compose up setup
+sudo bash swarm-setup.sh
 ```
 
-If everything went well and the setup completed without error, start the other stack components:
+Si vous rencontrez un problème, éxécutez ce script:
 
 ```sh
-docker compose up
+sudo bash elk-diagnostic.sh
 ```
 
 > [!NOTE]
-> You can also run all services in the background (detached mode) by appending the `-d` flag to the above command.
 
-Give Kibana about a minute to initialize, then access the Kibana web UI by opening <http://localhost:5601> in a web
-browser and use the following (default) credentials to log in:
+Accédez à l'interface web Kibana en accédant a <http://localhost:5601> ou <https://kibana.aero44.local:5601> dans votre navigateur puis connectez vous avec vos identifiants.
 
 * user: *elastic*
-* password: *changeme*
+* password: *****
+
+
+> [!NOTE]
+> Suite a l'initialisation, les utilisateurs ELK `elastic`, `logstash_internal` et `kibana_system` sont créés.
+> with the values of the passwords defined in the [`.env`](.env) file (_"changeme"_ by default). The first one is the
+> [built-in superuser][builtin-users], the other two are used by Kibana and Logstash respectively to communicate with
+> Elasticsearch. This task is only performed during the _initial_ startup of the stack. To change users' passwords
+> _after_ they have been initialized, please refer to the instructions in the next section.
 
 > [!NOTE]
 > Upon the initial startup, the `elastic`, `logstash_internal` and `kibana_system` Elasticsearch users are initialized
@@ -259,12 +241,14 @@ You can also load the sample data provided by your Kibana installation.
 
 ### Cleanup
 
-Elasticsearch data is persisted inside a volume by default.
+Les données Elasticsearch sont stockées dans des volumes docker. Par défaut
 
 In order to entirely shutdown the stack and remove all persisted data, use the following Docker Compose command:
 
+Pour 
+
 ```sh
-docker compose down -v
+sudo bash swarm-rm.sh
 ```
 
 ### Version selection
@@ -276,13 +260,6 @@ command.
 > [!IMPORTANT]
 > Always pay attention to the [official upgrade instructions][upgrade] for each individual component before performing a
 > stack upgrade.
-
-Older major versions are also supported on separate branches:
-
-* [`release-8.x`](https://github.com/deviantony/docker-elk/tree/release-8.x): 8.x series
-* [`release-7.x`](https://github.com/deviantony/docker-elk/tree/release-7.x): 7.x series
-* [`release-6.x`](https://github.com/deviantony/docker-elk/tree/release-6.x): 6.x series (End-of-life)
-* [`release-5.x`](https://github.com/deviantony/docker-elk/tree/release-5.x): 5.x series (End-of-life)
 
 ## Configuration
 
@@ -338,10 +315,6 @@ logstash:
 
 Please refer to the following documentation page for more details about how to configure Logstash inside Docker
 containers: [Configuring Logstash for Docker][ls-docker].
-
-### How to scale out the Elasticsearch cluster
-
-Follow the instructions from the Wiki: [Scaling out Elasticsearch](https://github.com/deviantony/docker-elk/wiki/Elasticsearch-cluster)
 
 ### How to re-generate TLS certificates
 
