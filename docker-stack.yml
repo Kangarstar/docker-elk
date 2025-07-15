@@ -328,6 +328,7 @@ services:
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
     user: root
+    privileged: true
     command:
       - -e
       - --system.hostfs=/hostfs
