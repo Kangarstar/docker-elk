@@ -220,8 +220,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     else
         # If curl fails, check if it's a connection issue or authentication issue
         HTTP_CODE=$(curl -4 -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
-        echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
-
+        
         # Clean up HTTP_CODE in case of multiple 000s or other issues
         HTTP_CODE=$(echo "$HTTP_CODE" | tail -c 4)
         
@@ -237,8 +236,10 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         fi
     fi
 
-    sleep 5
+    # Always increment counter and sleep at the end of the loop
     ((RETRY_COUNT++))
+    echo -e "${BLUE}Waiting 5 seconds before next check... (attempt ${RETRY_COUNT}/${MAX_RETRIES})${NC}"
+    sleep 5
 done
 
 if [ "$ES_READY" = false ]; then
@@ -247,7 +248,6 @@ if [ "$ES_READY" = false ]; then
     echo -e "${YELLOW}And check logs with: docker service logs elk_elasticsearch1${NC}"
     exit 1
 fi
-
 # ========================================
 # ELASTICSEARCH USER SETUP INTEGRATION
 # ========================================
