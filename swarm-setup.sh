@@ -12,10 +12,9 @@ echo -e "${GREEN}=== ELK Stack Swarm Setup ===${NC}"
 
 # Load environment variables
 if [ -f .env ]; then
-#    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
-	set -a
-	source .env
-	set +a
+    set -a
+    source .env
+    set +a
     echo -e "${GREEN}✓ Loaded environment variables${NC}"
 else
     echo -e "${RED}✗ .env file not found${NC}"
@@ -31,6 +30,112 @@ else
     exit 1
 fi
 
+# Function to safely remove Docker stack
+remove_stack() {
+    if docker stack ls --format "{{.Name}}" | grep -q "^elk$"; then
+        echo -e "${YELLOW}Removing existing ELK stack...${NC}"
+        docker stack rm elk
+        
+        # Wait for stack to be completely removed
+        echo -e "${YELLOW}Waiting for stack removal to complete...${NC}"
+        while docker stack ls --format "{{.Name}}" | grep -q "^elk$"; do
+            sleep 2
+        done
+        
+        # Additional wait for resources cleanup
+        sleep 10
+        echo -e "${GREEN}✓ ELK stack removed${NC}"
+    else
+        echo -e "${BLUE}ℹ No existing ELK stack found${NC}"
+    fi
+}
+
+# Function to safely remove and recreate secrets
+update_secrets() {
+    echo -e "${YELLOW}Updating Docker secrets for TLS certificates...${NC}"
+    
+    # List of secrets to manage
+    local secrets=(
+        "elk_ca_crt:./tls/certs/ca/ca.crt"
+        "elk_elasticsearch_crt:./tls/certs/elasticsearch/elasticsearch.crt"
+        "elk_elasticsearch_key:./tls/certs/elasticsearch/elasticsearch.key"
+        "elk_kibana_crt:./tls/certs/kibana/kibana.crt"
+        "elk_kibana_key:./tls/certs/kibana/kibana.key"
+        "elk_fleet_crt:./tls/certs/fleet-server/fleet-server.crt"
+        "elk_fleet_key:./tls/certs/fleet-server/fleet-server.key"
+    )
+    
+    # Remove existing secrets if they exist (ignore errors)
+    for secret_info in "${secrets[@]}"; do
+        secret_name="${secret_info%%:*}"
+        docker secret rm "$secret_name" 2>/dev/null || true
+    done
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
+    # Create new secrets
+    for secret_info in "${secrets[@]}"; do
+        secret_name="${secret_info%%:*}"
+        secret_file="${secret_info##*:}"
+        if [ -f "$secret_file" ]; then
+            docker secret create "$secret_name" "$secret_file"
+        else
+            echo -e "${RED}✗ Warning: $secret_file not found for secret $secret_name${NC}"
+        fi
+    done
+    
+    echo -e "${GREEN}✓ Docker secrets updated${NC}"
+}
+
+# Function to safely remove and recreate configs
+update_configs() {
+    echo -e "${YELLOW}Updating Docker configs...${NC}"
+    
+    # List of configs to manage
+    local configs=(
+        "kibana_yml:./kibana/config/kibana.yml"
+        "metricbeat_yml:./extensions/metricbeat/config/metricbeat.yml"
+        "filebeat_yml:./extensions/filebeat/config/filebeat.yml"
+        "logstash_yml:./logstash/config/logstash.yml"
+        "pipeline_conf:./logstash/pipeline/logstash.conf"
+    )
+    
+    # Remove existing configs if they exist (ignore errors)
+    for config_info in "${configs[@]}"; do
+        config_name="${config_info%%:*}"
+        docker config rm "$config_name" 2>/dev/null || true
+    done
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
+    # Create new configs
+    for config_info in "${configs[@]}"; do
+        config_name="${config_info%%:*}"
+        config_file="${config_info##*:}"
+        if [ -f "$config_file" ]; then
+            docker config create "$config_name" "$config_file"
+        else
+            echo -e "${RED}✗ Warning: $config_file not found for config $config_name${NC}"
+        fi
+    done
+    
+    echo -e "${GREEN}✓ Docker configs updated${NC}"
+}
+
+# Check if this is a rerun (stack exists)
+STACK_EXISTS=false
+if docker stack ls --format "{{.Name}}" | grep -q "^elk$"; then
+    STACK_EXISTS=true
+    echo -e "${BLUE}ℹ Existing ELK stack detected - performing restart and update${NC}"
+fi
+
+# If stack exists, remove it first
+if [ "$STACK_EXISTS" = true ]; then
+    remove_stack
+fi
+
 # Check if TLS certificates exist
 if [ ! -f "./tls/certs/ca/ca.crt" ]; then
     echo -e "${YELLOW}⚠ TLS certificates not found. Running TLS setup...${NC}"
@@ -41,42 +146,9 @@ else
     echo -e "${GREEN}✓ TLS certificates found${NC}"
 fi
 
-# Create Docker secrets from TLS certificates
-echo -e "${YELLOW}Updating Docker secrets for TLS certificates...${NC}"
-
-# Remove existing secrets if they exist (ignore errors)
-docker secret rm elk_ca_crt 2>/dev/null || true
-docker secret rm elk_elasticsearch_crt 2>/dev/null || true
-docker secret rm elk_elasticsearch_key 2>/dev/null || true
-docker secret rm elk_kibana_crt 2>/dev/null || true
-docker secret rm elk_kibana_key 2>/dev/null || true
-docker secret rm elk_fleet_crt 2>/dev/null || true
-docker secret rm elk_fleet_key 2>/dev/null || true
-
-# Create new secrets
-docker secret create elk_ca_crt ./tls/certs/ca/ca.crt
-docker secret create elk_elasticsearch_crt ./tls/certs/elasticsearch/elasticsearch.crt
-docker secret create elk_elasticsearch_key ./tls/certs/elasticsearch/elasticsearch.key
-docker secret create elk_kibana_crt ./tls/certs/kibana/kibana.crt
-docker secret create elk_kibana_key ./tls/certs/kibana/kibana.key
-docker secret create elk_fleet_crt ./tls/certs/fleet-server/fleet-server.crt
-docker secret create elk_fleet_key ./tls/certs/fleet-server/fleet-server.key
-
-# Remove existing configs if they exist (ignore errors)
-docker config rm kibana_yml 2>/dev/null || true
-docker config rm metricbeat_yml 2>/dev/null || true
-docker config rm filebeat_yml 2>/dev/null || true
-docker config rm logstash_yml 2>/dev/null || true
-docker config rm pipeline_conf 2>/dev/null || true
-
-# Create new configs
-docker config create kibana_yml ./kibana/config/kibana.yml
-docker config create metricbeat_yml ./extensions/metricbeat/config/metricbeat.yml
-docker config create filebeat_yml ./extensions/filebeat/config/filebeat.yml
-docker config create logstash_yml ./logstash/config/logstash.yml
-docker config create pipeline_conf ./logstash/pipeline/logstash.conf
-
-echo -e "${GREEN}✓ Docker secrets updated${NC}"
+# Update secrets and configs (now safe since stack is removed)
+update_secrets
+update_configs
 
 # Create overlay network if it doesn't exist
 if ! docker network inspect elk >/dev/null 2>&1; then
@@ -102,15 +174,18 @@ fi
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
-docker stack deploy -d -c docker-stack.yml elk
+docker stack deploy -c docker-stack.yml elk
 
-# Wait longer for Elasticsearch cluster to be ready
+# Wait for services to start
+echo -e "${YELLOW}Waiting for services to start...${NC}"
+sleep 20
+
+# Wait for Elasticsearch cluster to be ready
 echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
 echo -e "${BLUE}This may take several minutes for a 3-node cluster...${NC}"
-sleep 30  # Increased from 30 seconds
 
 # Enhanced readiness check with better error reporting
-MAX_RETRIES=30
+MAX_RETRIES=40
 RETRY_COUNT=0
 ES_READY=false
 
@@ -137,14 +212,22 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 
         if [ "$HTTP_CODE" == "401" ]; then
             echo -e "${RED}✗ Authentication failed. Check ELASTIC_PASSWORD${NC}"
+            break
         elif [ "$HTTP_CODE" == "000" ]; then
             echo -e "${BLUE}Connection refused or timeout. Elasticsearch may still be starting...${NC}"
         fi
     fi
 
-    sleep 5  # Increased from 10 seconds
+    sleep 5
     ((RETRY_COUNT++))
 done
+
+if [ "$ES_READY" = false ]; then
+    echo -e "${RED}✗ Elasticsearch failed to become ready within the timeout period${NC}"
+    echo -e "${YELLOW}You can check the service status with: docker service ls --filter name=elk_${NC}"
+    echo -e "${YELLOW}And check logs with: docker service logs elk_elasticsearch1${NC}"
+    exit 1
+fi
 
 # ========================================
 # ELASTICSEARCH USER SETUP INTEGRATION
@@ -445,9 +528,16 @@ done
 echo -e "${GREEN}✓ Elasticsearch users and roles setup completed!${NC}"
 
 echo -e "${GREEN}✓ Setup completed successfully!${NC}"
-echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
+if [ "$STACK_EXISTS" = true ]; then
+    echo -e "${GREEN}✓ ELK Stack has been restarted and updated in Docker Swarm mode${NC}"
+else
+    echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
+fi
 echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
 
 # Final status check
 echo -e "${BLUE}=== Final Service Status ===${NC}"
 docker service ls --filter name=elk_
+
+# Cleanup temporary files
+rm -f /tmp/es_health.json 2>/dev/null || true
