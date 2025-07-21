@@ -136,11 +136,11 @@ echo -e "${YELLOW}Testing service connectivity...${NC}"
 
 # Test Elasticsearch status
 for i in {1..5}; do
-    if curl -sf --insecure https://elasticsearch:5601/api/status >/dev/null 2>&1; then
+    if curl -sf --insecure https://elasticsearch:9200 >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
         break
     fi
-    
+
     if [ $i -eq 5 ]; then
         echo -e "${YELLOW}⚠ Elasticsearch not responding yet, but continuing setup...${NC}"
         echo -e "${BLUE}The cluster may need more time to fully initialize${NC}"
@@ -156,7 +156,7 @@ for i in {1..5}; do
         echo -e "${GREEN}✓ Kibana is responding${NC}"
         break
     fi
-    
+
     if [ $i -eq 5 ]; then
         echo -e "${YELLOW}⚠ Kibana not responding yet, but continuing setup...${NC}"
     else
@@ -170,10 +170,9 @@ function create_or_update_user_simple {
     local username=$1
     local password=$2
     local role=$3
-    
+
     echo -e "${YELLOW}Setting up user: $username${NC}"
-    
-    # Try to create/update user - simple approach
+
     if curl -sf --connect-timeout 10 --max-time 15 \
             --cacert ./tls/certs/ca/ca.crt \
             -u "elastic:${ELASTIC_PASSWORD}" \
@@ -193,10 +192,10 @@ function create_or_update_user_simple {
 function create_role_simple {
     local role_name=$1
     local role_file=$2
-    
+
     if [[ -f "$role_file" ]]; then
         echo -e "${YELLOW}Setting up role: $role_name${NC}"
-        
+
         if curl -sf --connect-timeout 10 --max-time 15 \
                 --cacert ./tls/certs/ca/ca.crt \
                 -u "elastic:${ELASTIC_PASSWORD}" \
@@ -211,51 +210,24 @@ function create_role_simple {
     fi
 }
 
-# Wait for Elasticsearch to be ready
-if ! wait_for_elasticsearch_simple; then
-    echo -e "${YELLOW}⚠ Skipping user setup - Elasticsearch not ready${NC}"
-    echo -e "${BLUE}You can run user setup manually later${NC}"
-else
-    # Create roles first
-    echo -e "${YELLOW}Creating roles...${NC}"
-    create_role_simple "logstash_writer" "./setup/roles/logstash_writer.json"
-    create_role_simple "metricbeat_writer" "./setup/roles/metricbeat_writer.json"
-    create_role_simple "filebeat_writer" "./setup/roles/filebeat_writer.json"
-    create_role_simple "heartbeat_writer" "./setup/roles/heartbeat_writer.json"
+# Create roles
+echo -e "${YELLOW}Creating roles...${NC}"
+create_role_simple "logstash_writer" "./setup/roles/logstash_writer.json"
+create_role_simple "metricbeat_writer" "./setup/roles/metricbeat_writer.json"
+create_role_simple "filebeat_writer" "./setup/roles/filebeat_writer.json"
+create_role_simple "heartbeat_writer" "./setup/roles/heartbeat_writer.json"
 
-    # Create/update users
-    echo -e "${YELLOW}Creating users...${NC}"
-    if [[ -n "${LOGSTASH_INTERNAL_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "logstash_internal" "${LOGSTASH_INTERNAL_PASSWORD}" "logstash_writer"
-    fi
-    
-    if [[ -n "${KIBANA_SYSTEM_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "kibana_system" "${KIBANA_SYSTEM_PASSWORD}" "kibana_system"
-    fi
-    
-    if [[ -n "${METRICBEAT_INTERNAL_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "metricbeat_internal" "${METRICBEAT_INTERNAL_PASSWORD}" "metricbeat_writer"
-    fi
-    
-    if [[ -n "${FILEBEAT_INTERNAL_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "filebeat_internal" "${FILEBEAT_INTERNAL_PASSWORD}" "filebeat_writer"
-    fi
-    
-    if [[ -n "${HEARTBEAT_INTERNAL_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "heartbeat_internal" "${HEARTBEAT_INTERNAL_PASSWORD}" "heartbeat_writer"
-    fi
-    
-    if [[ -n "${MONITORING_INTERNAL_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "monitoring_internal" "${MONITORING_INTERNAL_PASSWORD}" "remote_monitoring_collector"
-    fi
-    
-    if [[ -n "${BEATS_SYSTEM_PASSWORD:-}" ]]; then
-        create_or_update_user_simple "beats_system" "${BEATS_SYSTEM_PASSWORD}" "beats_system"
-    fi
+# Create/update users
+echo -e "${YELLOW}Creating users...${NC}"
+[[ -n "${LOGSTASH_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "logstash_internal" "${LOGSTASH_INTERNAL_PASSWORD}" "logstash_writer"
+[[ -n "${KIBANA_SYSTEM_PASSWORD:-}" ]] && create_or_update_user_simple "kibana_system" "${KIBANA_SYSTEM_PASSWORD}" "kibana_system"
+[[ -n "${METRICBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "metricbeat_internal" "${METRICBEAT_INTERNAL_PASSWORD}" "metricbeat_writer"
+[[ -n "${FILEBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "filebeat_internal" "${FILEBEAT_INTERNAL_PASSWORD}" "filebeat_writer"
+[[ -n "${HEARTBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "heartbeat_internal" "${HEARTBEAT_INTERNAL_PASSWORD}" "heartbeat_writer"
+[[ -n "${MONITORING_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "monitoring_internal" "${MONITORING_INTERNAL_PASSWORD}" "remote_monitoring_collector"
+[[ -n "${BEATS_SYSTEM_PASSWORD:-}" ]] && create_or_update_user_simple "beats_system" "${BEATS_SYSTEM_PASSWORD}" "beats_system"
 
-    echo -e "${GREEN}✓ User setup completed${NC}"
-fi
-
+echo -e "${GREEN}✓ User setup completed${NC}"
 echo -e "${GREEN}✓ Setup completed successfully!${NC}"
 echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
 echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
