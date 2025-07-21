@@ -107,10 +107,10 @@ docker stack deploy -d -c docker-stack.yml elk
 # Wait longer for Elasticsearch cluster to be ready
 echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
 echo -e "${BLUE}This may take several minutes for a 3-node cluster...${NC}"
-sleep 60  # Increased from 30 seconds
+sleep 30  # Increased from 30 seconds
 
 # Enhanced readiness check with better error reporting
-MAX_RETRIES=60  # Increased from 30
+MAX_RETRIES=30
 RETRY_COUNT=0
 ES_READY=false
 
@@ -118,7 +118,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
     echo -e "${YELLOW}Checking Elasticsearch readiness... (${RETRY_COUNT}/${MAX_RETRIES})${NC}"
 
     # Check if Elasticsearch is responding
-    if curl -s --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
+    if curl -4 -s --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
         CLUSTER_STATUS=$(cat /tmp/es_health.json | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
         ACTIVE_NODES=$(cat /tmp/es_health.json | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
 
@@ -132,7 +132,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         fi
     else
         # If curl fails, check if it's a connection issue or authentication issue
-        HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
+        HTTP_CODE=$(curl -4 -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
         echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
 
         if [ "$HTTP_CODE" == "401" ]; then
@@ -142,7 +142,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         fi
     fi
 
-    sleep 10  # Increased from 10 seconds
+    sleep 5  # Increased from 10 seconds
     ((RETRY_COUNT++))
 done
 
