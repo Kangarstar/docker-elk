@@ -222,6 +222,11 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         HTTP_CODE=$(curl -4 -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
         echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
 
+        # Clean up HTTP_CODE in case of multiple 000s or other issues
+        HTTP_CODE=$(echo "$HTTP_CODE" | tail -c 4)
+        
+        echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
+
         if [ "$HTTP_CODE" == "401" ]; then
             echo -e "${RED}✗ Authentication failed. Check ELASTIC_PASSWORD${NC}"
             break
