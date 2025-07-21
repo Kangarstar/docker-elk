@@ -46,13 +46,13 @@ sudo bash swarm-setup.sh
      * [Configuration des utilisateurs](#configuration-des-utilisateurs)
      * [Injection de données](#injection-de-données)
    * [Suppression](#suppression)
+   * [Comment réexécuter le stack](#comment-réexécuter-le-stack)
    * [Montée de version](#montée-de-version)
 1. [Configuration](#configuration)
    * [Comment configurer Elasticsearch](#comment-configurer-elasticsearch)
    * [Comment configurer Kibana](#comment-configurer-kibana)
    * [Comment configurer Logstash](#comment-configurer-logstash)
    * [Comment régénérer les certificats TLS](#comment-régénérer-les-certificats-tls)
-   * [Comment réexécuter le stack](#comment-réexécuter-le-stack)
    * [Autre manière de modifier les mots de passe](#autre-manière-de-modifier-les-mots-de-passe)
 1. [Mémoire RAM JVM](#mémoire-ram-jvm)
    * [Comment spécifier la quantité de RAM utilisée par un service](#comment-spécifier-la-quantité-de-ram-utilisée-par-un-service)
@@ -110,7 +110,7 @@ Une fois que les certificats TLS sont générés, initialiser le les utilisateur
 sudo bash swarm-setup.sh
 ```
 
-Si vous rencontrez un problème, éxécutez ce script de diagnostic:
+Si vous rencontrez un problème avec l'execution du script setup, éxécutez ce script de diagnostic:
 
 ```sh
 sudo bash elk-diagnostic.sh   
@@ -198,6 +198,7 @@ cat /path/to/logfile.log | nc -c localhost 50000           # GNU
 cat /path/to/logfile.log | nc --send-only localhost 50000  # nmap
 ```
 
+
 ### Suppression
 
 Les données Elasticsearch sont stockées dans des volumes docker. Par défaut, l'execution du script `swarm-rm.sh` va eteindre les conteneurs sans supprimer de données:
@@ -205,6 +206,15 @@ Les données Elasticsearch sont stockées dans des volumes docker. Par défaut, 
 ```sh
 cd /opt/docker-elk
 sudo bash swarm-rm.sh
+```
+
+### Comment réexécuter le stack
+
+Pour relancer le stack et prendre en compte les modifications de configuration (certificats, mots de passe, fichier de configuration ELK)  
+Vous pouvez simplement réexecuter le script de setup:
+
+```console
+sudo bash swarm-setup.sh
 ```
 
 Pour supprimer les volumes, il est recommandé d'utiliser la section `Volumes` de la console `portainer` accessible depuis <https://portainer.aero44.local:9443/>
@@ -290,15 +300,6 @@ et relancez la commmande:
 
 ```sh
 $ sudo docker compose up tls -d
-```
-
-### Comment réexécuter le stack
-
-To run the setup container again and re-initialize all users for which a password was defined inside the `.env` file,
-simply "up" the `setup` Compose service again:
-
-```console
-WIP TODOOOOOO
 ```
 
 ### Autre manière de modifier les mots de passe
