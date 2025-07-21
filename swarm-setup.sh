@@ -136,7 +136,7 @@ echo -e "${YELLOW}Testing service connectivity...${NC}"
 
 # Test Elasticsearch status
 for i in {1..5}; do
-    if curl -sf --insecure https://elasticsearch:9200 >/dev/null 2>&1; then
+    if curl -sf --insecure https://elasticsearch:5601 >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
         break
     fi
