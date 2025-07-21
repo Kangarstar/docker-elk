@@ -155,7 +155,7 @@ echo -e "${GREEN}=== Setting up Elasticsearch Users and Roles ===${NC}"
 # Override functions for TLS support
 function wait_for_elasticsearch {
     local elasticsearch_host="localhost"  # Using port forwarding
-    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}' 
+    local -a args=( '-4' '-s' '-D-' '-m15' '-w' '%{http_code}' 
         "--cacert" "./tls/certs/ca/ca.crt"
         "https://${elasticsearch_host}:9200/" )
 
