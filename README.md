@@ -53,12 +53,17 @@ sudo bash swarm-setup.sh
    * [Comment configurer Logstash](#comment-configurer-logstash)
    * [Comment régénérer les certificats TLS](#comment-régénérer-les-certificats-tls)
    * [Comment réexécuter le stack](#comment-réexécuter-le-stack)
-   * [Test](test)
-   * [Autre manière de modifier les mots de passe](autre-manière-de-modifier-les-mots-de-passe)
+   * [Autre manière de modifier les mots de passe](#autre-manière-de-modifier-les-mots-de-passe)
 1. [Mémoire RAM JVM](#mémoire-ram-jvm)
    * [Comment spécifier la quantité de RAM utilisée par un service](#comment-spécifier-la-quantité-de-ram-utilisée-par-un-service)
 1. [Approfondir](#approfondir)
    * [Plugins et intégrations](#plugins-et-intégrations)
+
+
+
+
+
+
 
 ## Prérequis
 
@@ -295,7 +300,7 @@ simply "up" the `setup` Compose service again:
 ```console
 WIP TODOOOOOO
 ```
-### Test
+
 ### Autre manière de modifier les mots de passe
 
 Si le changement de mot de passe n'est pas possible avec les méthodes mentionnées précedemment (dont les [built-in users][builtin-users]), vous pouvez utiliser l'API d'Elasticsearch.

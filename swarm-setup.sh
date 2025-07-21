@@ -100,51 +100,69 @@ else
     echo -e "${YELLOW}⚠ Less than 3 nodes available. Elasticsearch nodes may be placed on same nodes.${NC}"
 fi
 
-# Deploy the stack
-echo -e "${YELLOW}Deploying ELK stack...${NC}"
-docker stack deploy -d -c docker-stack.yml elk
-
-# Wait longer for Elasticsearch cluster to be ready
 echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
 echo -e "${BLUE}This may take several minutes for a 3-node cluster...${NC}"
-sleep 60  # Increased from 30 seconds
 
-# Enhanced readiness check with better error reporting
-MAX_RETRIES=60  # Increased from 30
+# Simple readiness check
+MAX_RETRIES=20
 RETRY_COUNT=0
 ES_READY=false
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    echo -e "${YELLOW}Checking Elasticsearch readiness... (${RETRY_COUNT}/${MAX_RETRIES})${NC}"
+    if [ $((RETRY_COUNT % 5)) -eq 0 ]; then
+        echo -e "${YELLOW}Checking Elasticsearch readiness... (attempt $((RETRY_COUNT + 1))/${MAX_RETRIES})${NC}"
+    fi
 
-    # Check if Elasticsearch is responding
-    if curl -s --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
-        CLUSTER_STATUS=$(cat /tmp/es_health.json | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-        ACTIVE_NODES=$(cat /tmp/es_health.json | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
+    # Simple health check
+    if curl -s --connect-timeout 10 --max-time 15 \
+            --cacert ./tls/certs/ca/ca.crt \
+            -u "elastic:${ELASTIC_PASSWORD}" \
+            "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
+        
+        # Extract cluster status
+        if command -v jq >/dev/null 2>&1; then
+            CLUSTER_STATUS=$(jq -r '.status' /tmp/es_health.json 2>/dev/null)
+        else
+            CLUSTER_STATUS=$(grep -o '"status":"[^"]*"' /tmp/es_health.json | cut -d'"' -f4)
+        fi
 
-        echo -e "${BLUE}Cluster status: ${CLUSTER_STATUS}, Active nodes: ${ACTIVE_NODES}${NC}"
-
-        # Check if cluster is green or yellow (yellow is acceptable for single-node or during startup)
+        # Check if cluster is healthy
         if [[ "$CLUSTER_STATUS" == "green" ]] || [[ "$CLUSTER_STATUS" == "yellow" ]]; then
-            echo -e "${GREEN}✓ Elasticsearch cluster is ready (${CLUSTER_STATUS})${NC}"
+            echo -e "${GREEN}✓ Elasticsearch cluster is ready (status: ${CLUSTER_STATUS})${NC}"
             ES_READY=true
             break
-        fi
-    else
-        # If curl fails, check if it's a connection issue or authentication issue
-        HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
-        echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
-
-        if [ "$HTTP_CODE" == "401" ]; then
-            echo -e "${RED}✗ Authentication failed. Check ELASTIC_PASSWORD${NC}"
-        elif [ "$HTTP_CODE" == "000" ]; then
-            echo -e "${BLUE}Connection refused or timeout. Elasticsearch may still be starting...${NC}"
+        else
+            echo -e "${BLUE}Cluster status: ${CLUSTER_STATUS}, waiting...${NC}"
         fi
     fi
 
-    sleep 10  # Increased from 10 seconds
+    sleep 10
     ((RETRY_COUNT++))
 done
+
+# Clean up temp file
+rm -f /tmp/es_health.json
+
+if [ "$ES_READY" != "true" ]; then
+    echo -e "${RED}✗ Elasticsearch failed to start within expected time${NC}"
+    echo -e "${YELLOW}Checking if services are running...${NC}"
+    
+    # Quick service status check
+    if docker service ls --filter name=elk_elasticsearch --format "table {{.Name}}\t{{.Replicas}}" | grep -q "0/"; then
+        echo -e "${RED}Some Elasticsearch services are not running${NC}"
+        echo -e "${YELLOW}Run 'docker service logs elk_elasticsearch1' for more details${NC}"
+    else
+        echo -e "${BLUE}Services appear to be running, but cluster is not ready${NC}"
+        echo -e "${YELLOW}This might be normal for initial startup. Try accessing Kibana in a few minutes.${NC}"
+    fi
+    
+    # Don't exit on re-runs if services are deployed
+    if docker service ls --filter name=elk_ --quiet | wc -l | grep -q "^[1-9]"; then
+        echo -e "${YELLOW}ELK services are deployed. Continuing with user setup...${NC}"
+    else
+        exit 1
+    fi
+fi
 
 if [ "$ES_READY" != "true" ]; then
     echo -e "${RED}✗ Elasticsearch failed to start within expected time${NC}"
