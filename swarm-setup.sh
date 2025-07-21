@@ -194,16 +194,28 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 
     # Check if Elasticsearch is responding
     if curl -4 -s --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
-        CLUSTER_STATUS=$(cat /tmp/es_health.json | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
-        ACTIVE_NODES=$(cat /tmp/es_health.json | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
+        # Check if we got a valid JSON response with the required fields
+        if [ -s /tmp/es_health.json ] && grep -q '"status"' /tmp/es_health.json && grep -q '"number_of_nodes"' /tmp/es_health.json; then
+            CLUSTER_STATUS=$(cat /tmp/es_health.json | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+            ACTIVE_NODES=$(cat /tmp/es_health.json | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
 
-        echo -e "${BLUE}Cluster status: ${CLUSTER_STATUS}, Active nodes: ${ACTIVE_NODES}${NC}"
+            # Only proceed if we successfully extracted both values
+            if [[ -n "$CLUSTER_STATUS" ]] && [[ -n "$ACTIVE_NODES" ]]; then
+                echo -e "${BLUE}Cluster status: ${CLUSTER_STATUS}, Active nodes: ${ACTIVE_NODES}${NC}"
 
-        # Check if cluster is green or yellow (yellow is acceptable for single-node or during startup)
-        if [[ "$CLUSTER_STATUS" == "green" ]] || [[ "$CLUSTER_STATUS" == "yellow" ]]; then
-            echo -e "${GREEN}✓ Elasticsearch cluster is ready (${CLUSTER_STATUS})${NC}"
-            ES_READY=true
-            break
+                # Check if cluster is green or yellow (yellow is acceptable for single-node or during startup)
+                if [[ "$CLUSTER_STATUS" == "green" ]] || [[ "$CLUSTER_STATUS" == "yellow" ]]; then
+                    echo -e "${GREEN}✓ Elasticsearch cluster is ready (${CLUSTER_STATUS})${NC}"
+                    ES_READY=true
+                    break
+                else
+                    echo -e "${BLUE}Cluster not ready yet (status: ${CLUSTER_STATUS})${NC}"
+                fi
+            else
+                echo -e "${BLUE}Incomplete response data, continuing to wait...${NC}"
+            fi
+        else
+            echo -e "${BLUE}Empty or invalid response, Elasticsearch may still be starting...${NC}"
         fi
     else
         # If curl fails, check if it's a connection issue or authentication issue
@@ -215,6 +227,8 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             break
         elif [ "$HTTP_CODE" == "000" ]; then
             echo -e "${BLUE}Connection refused or timeout. Elasticsearch may still be starting...${NC}"
+        else
+            echo -e "${BLUE}Received HTTP ${HTTP_CODE}, continuing to wait...${NC}"
         fi
     fi
 
