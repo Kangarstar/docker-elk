@@ -12,10 +12,9 @@ echo -e "${GREEN}=== ELK Stack Swarm Setup ===${NC}"
 
 # Load environment variables
 if [ -f .env ]; then
-#    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
-	set -a
-	source .env
-	set +a
+    set -a
+    source .env
+    set +a
     echo -e "${GREEN}✓ Loaded environment variables${NC}"
 else
     echo -e "${RED}✗ .env file not found${NC}"
@@ -102,24 +101,23 @@ fi
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
-docker stack deploy -d -c docker-stack.yml elk
+docker stack deploy -c docker-stack.yml elk
 
-# Simple wait and basic check
+# Wait for services to be deployed
 echo -e "${YELLOW}Waiting for services to start...${NC}"
-sleep 5
+sleep 30
 
+# Check if services are deployed
 echo -e "${YELLOW}Checking if Elasticsearch services are running...${NC}"
-
-# Check if services are deployed (not necessarily ready)
 SERVICES_RUNNING=false
-for i in {1..10}; do
+for i in {1..20}; do
     ES_SERVICES=$(docker service ls --filter name=elk_elasticsearch --format "{{.Replicas}}" | grep -c "1/1" || echo "0")
     if [ "$ES_SERVICES" -ge 1 ]; then
         echo -e "${GREEN}✓ Elasticsearch services are running${NC}"
         SERVICES_RUNNING=true
         break
     fi
-    echo -e "${BLUE}Services starting... ($i/10)${NC}"
+    echo -e "${BLUE}Services starting... ($i/20)${NC}"
     sleep 15
 done
 
@@ -129,255 +127,186 @@ if [ "$SERVICES_RUNNING" = "false" ]; then
     exit 1
 fi
 
-# Simple connectivity test using status endpoints
-echo -e "${YELLOW}Testing service connectivity...${NC}"
-
-# Test Elasticsearch status
-for i in {1..5}; do
-    if curl -sf --insecure https://elasticsearch:5601/api/status >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
-        break
-    fi
-
-    if [ $i -eq 5 ]; then
-        echo -e "${YELLOW}⚠ Elasticsearch not responding yet, but continuing setup...${NC}"
-        echo -e "${BLUE}The cluster may need more time to fully initialize${NC}"
-    else
-        echo -e "${BLUE}Waiting for Elasticsearch...${NC}"
-        sleep 20
-    fi
-done
-
-# Test Kibana status
-for i in {1..5}; do
-    if curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ Kibana is responding${NC}"
-        break
-    fi
-
-    if [ $i -eq 5 ]; then
-        echo -e "${YELLOW}⚠ Kibana not responding yet, but continuing setup...${NC}"
-    else
-        echo -e "${BLUE}Waiting for Kibana...${NC}"
-        sleep 20
-    fi
-done
-
-
 # ========================================
 # ELASTICSEARCH USER SETUP INTEGRATION
 # ========================================
 
 echo -e "${GREEN}=== Setting up Elasticsearch Users and Roles ===${NC}"
 
-# Override functions for TLS support
-function wait_for_elasticsearch {
-    local elasticsearch_host="localhost"  # Using port forwarding
-    local -a args=( '-s' '-D-' '-m15' '-w'
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/" )
+# Get the Elasticsearch service endpoint
+# Option 1: Use docker service inspect to get the published port
+ES_PORT=$(docker service inspect elk_elasticsearch --format='{{range .Spec.EndpointSpec.Ports}}{{if eq .TargetPort 9200}}{{.PublishedPort}}{{end}}{{end}}' 2>/dev/null || echo "9200")
 
+# Option 2: Alternative - run setup inside a container connected to the elk network
+function run_curl_in_network {
+    local url=$1
+    local method=${2:-GET}
+    local data=${3:-}
+    local auth_header=""
+    
     if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
+        auth_header="-u elastic:${ELASTIC_PASSWORD}"
     fi
+    
+    local curl_args="--insecure --cacert /certs/ca.crt -s -D- -m15"
+    if [[ "$method" != "GET" ]]; then
+        curl_args="$curl_args -X $method"
+    fi
+    if [[ -n "$data" ]]; then
+        curl_args="$curl_args -H 'Content-Type: application/json' -d '$data'"
+    fi
+    
+    # Run curl inside a container connected to the elk network
+    docker run --rm --network elk \
+        -v "$(pwd)/tls/certs/ca:/certs:ro" \
+        curlimages/curl:latest \
+        sh -c "curl $curl_args $auth_header '$url'" 2>/dev/null
+}
 
+# Modified functions to work with Docker Swarm
+function wait_for_elasticsearch {
+    local elasticsearch_host="elk_elasticsearch"  # Use service name
+    local url="https://${elasticsearch_host}:9200/"
+    
     local -i result=1
     local output
 
+    echo -e "${BLUE}Waiting for Elasticsearch to be ready...${NC}"
+    
     # retry for max 300s (60*5s)
-    for _ in $(seq 1 60); do
-        local -i exit_code=0
-        output="$(curl "${args[@]}")" || exit_code=$?
-
-        if ((exit_code)); then
-            result=$exit_code
-        fi
-
+    for i in $(seq 1 60); do
+        echo -e "${BLUE}Attempt $i/60...${NC}"
+        
+        output=$(run_curl_in_network "$url")
+        
         if [[ "${output: -3}" -eq 200 ]]; then
             result=0
+            echo -e "${GREEN}✓ Elasticsearch is ready${NC}"
             break
         fi
-
+        
+        echo -e "${BLUE}Elasticsearch not ready yet, waiting...${NC}"
         sleep 5
     done
 
-    if ((result)) && [[ "${output: -3}" -ne 000 ]]; then
-        echo -e "\n${output::-3}"
+    if ((result)); then
+        echo -e "${RED}✗ Elasticsearch failed to become ready${NC}"
+        if [[ -n "$output" ]]; then
+            echo -e "${RED}Last response: ${output}${NC}"
+        fi
     fi
 
     return $result
 }
 
 function wait_for_builtin_users {
-    local elasticsearch_host="localhost"
-    local -a args=( '-s' '-D-' '-m15' 
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/_security/user?pretty" )
-
-    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
-    fi
-
+    local elasticsearch_host="elk_elasticsearch"
+    local url="https://${elasticsearch_host}:9200/_security/user?pretty"
+    
     local -i result=1
-    local line
-    local -i exit_code
+    local output
     local -i num_users
 
-    # retry for max 30s (30*1s)
-    for _ in $(seq 1 30); do
+    echo -e "${BLUE}Waiting for built-in users initialization...${NC}"
+
+    # retry for max 60s (60*1s)
+    for i in $(seq 1 60); do
+        echo -e "${BLUE}Checking built-in users ($i/60)...${NC}"
+        
         num_users=0
-
-        while IFS= read -r line || ! exit_code="$line"; do
-            if [[ "$line" =~ _reserved.+true ]]; then
-                (( num_users++ ))
-            fi
-        done < <(curl "${args[@]}"; printf '%s' "$?")
-
-        if ((exit_code)); then
-            result=$exit_code
-        fi
-
-        # we expect more than just the 'elastic' user in the result
-        if (( num_users > 1 )); then
+        output=$(run_curl_in_network "$url")
+        
+        # Count reserved users in the output
+        num_users=$(echo "$output" | grep -c "_reserved.*true" || echo "0")
+        
+        # Check if we got a successful response and have multiple users
+        if [[ "${output: -3}" -eq 200 ]] && (( num_users > 1 )); then
             result=0
+            echo -e "${GREEN}✓ Built-in users are initialized${NC}"
             break
         fi
-
+        
         sleep 1
     done
+
+    if ((result)); then
+        echo -e "${RED}✗ Built-in users failed to initialize${NC}"
+        echo -e "${RED}Last response: ${output}${NC}"
+    fi
 
     return $result
 }
 
 function check_user_exists {
     local username=$1
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="elk_elasticsearch"
+    local url="https://${elasticsearch_host}:9200/_security/user/${username}"
 
-    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/_security/user/${username}"
-        )
-
-    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
-    fi
-
-    local -i result=1
-    local -i exists=0
     local output
-
-    output="$(curl "${args[@]}")"
-    if [[ "${output: -3}" -eq 200 || "${output: -3}" -eq 404 ]]; then
-        result=0
-    fi
+    output=$(run_curl_in_network "$url")
+    
     if [[ "${output: -3}" -eq 200 ]]; then
-        exists=1
-    fi
-
-    if ((result)); then
-        echo -e "\n${output::-3}"
+        echo "1"  # User exists
+    elif [[ "${output: -3}" -eq 404 ]]; then
+        echo "0"  # User doesn't exist
     else
-        echo "$exists"
+        echo -e "${RED}Error checking user: ${output}${NC}" >&2
+        echo "0"
     fi
-
-    return $result
 }
 
 function set_user_password {
     local username=$1
     local password=$2
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="elk_elasticsearch"
+    local url="https://${elasticsearch_host}:9200/_security/user/${username}/_password"
+    local data="{\"password\": \"${password}\"}"
 
-    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/_security/user/${username}/_password"
-        '-X' 'POST'
-        '-H' 'Content-Type: application/json'
-        '-d' "{\"password\" : \"${password}\"}"
-        )
-
-    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
-    fi
-
-    local -i result=1
     local output
-
-    output="$(curl "${args[@]}")"
+    output=$(run_curl_in_network "$url" "POST" "$data")
+    
     if [[ "${output: -3}" -eq 200 ]]; then
-        result=0
+        return 0
+    else
+        echo -e "${RED}Failed to set password for user ${username}: ${output}${NC}" >&2
+        return 1
     fi
-
-    if ((result)); then
-        echo -e "\n${output::-3}\n"
-    fi
-
-    return $result
 }
 
 function create_user {
     local username=$1
     local password=$2
     local role=$3
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="elk_elasticsearch"
+    local url="https://${elasticsearch_host}:9200/_security/user/${username}"
+    local data="{\"password\":\"${password}\",\"roles\":[\"${role}\"]}"
 
-    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/_security/user/${username}"
-        '-X' 'POST'
-        '-H' 'Content-Type: application/json'
-        '-d' "{\"password\":\"${password}\",\"roles\":[\"${role}\"]}"
-        )
-
-    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
-    fi
-
-    local -i result=1
     local output
-
-    output="$(curl "${args[@]}")"
+    output=$(run_curl_in_network "$url" "POST" "$data")
+    
     if [[ "${output: -3}" -eq 200 ]]; then
-        result=0
+        return 0
+    else
+        echo -e "${RED}Failed to create user ${username}: ${output}${NC}" >&2
+        return 1
     fi
-
-    if ((result)); then
-        echo -e "\n${output::-3}\n"
-    fi
-
-    return $result
 }
 
 function ensure_role {
     local name=$1
     local body=$2
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="elk_elasticsearch"
+    local url="https://${elasticsearch_host}:9200/_security/role/${name}"
 
-    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
-        "--cacert" "./tls/certs/ca/ca.crt"
-        "https://${elasticsearch_host}:9200/_security/role/${name}"
-        '-X' 'POST'
-        '-H' 'Content-Type: application/json'
-        '-d' "$body"
-        )
-
-    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
-    fi
-
-    local -i result=1
     local output
-
-    output="$(curl "${args[@]}")"
+    output=$(run_curl_in_network "$url" "POST" "$body")
+    
     if [[ "${output: -3}" -eq 200 ]]; then
-        result=0
+        return 0
+    else
+        echo -e "${RED}Failed to create/update role ${name}: ${output}${NC}" >&2
+        return 1
     fi
-
-    if ((result)); then
-        echo -e "\n${output::-3}\n"
-    fi
-
-    return $result
 }
 
 # Users declarations
@@ -409,8 +338,21 @@ roles_files=(
     [heartbeat_writer]='heartbeat_writer.json'
 )
 
-log 'Waiting for built-in users initialization'
+# Wait for Elasticsearch to be ready
+log 'Waiting for Elasticsearch to be ready'
 declare -i exit_code=0
+wait_for_elasticsearch || exit_code=$?
+
+if ((exit_code)); then
+    suberr 'Timed out waiting for Elasticsearch'
+    exit $exit_code
+fi
+
+sublog 'Elasticsearch is ready'
+
+# Wait for built-in users
+log 'Waiting for built-in users initialization'
+exit_code=0
 wait_for_builtin_users || exit_code=$?
 
 if ((exit_code)); then
