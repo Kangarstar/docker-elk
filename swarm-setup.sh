@@ -178,7 +178,7 @@ docker stack deploy -c docker-stack.yml elk
 
 # Wait for services to start
 echo -e "${YELLOW}Waiting for services to start...${NC}"
-sleep 60
+sleep 20
 
 # Wait for Elasticsearch cluster to be ready
 echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
