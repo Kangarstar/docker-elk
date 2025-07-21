@@ -102,107 +102,68 @@ fi
 
 echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
 
-# # Deploy the stack
-# echo -e "${YELLOW}Deploying ELK stack...${NC}"
-# docker stack deploy -d -c docker-stack.yml elk
-
-# # Simple wait and basic check
-# echo -e "${YELLOW}Waiting for services to start...${NC}"
-# sleep 30
-
-# echo -e "${YELLOW}Checking if Elasticsearch services are running...${NC}"
-
-# # Check if services are deployed (not necessarily ready)
-# SERVICES_RUNNING=false
-# for i in {1..10}; do
-#     ES_SERVICES=$(docker service ls --filter name=elk_elasticsearch --format "{{.Replicas}}" | grep -c "1/1" || echo "0")
-#     if [ "$ES_SERVICES" -ge 1 ]; then
-#         echo -e "${GREEN}✓ Elasticsearch services are running${NC}"
-#         SERVICES_RUNNING=true
-#         break
-#     fi
-#     echo -e "${BLUE}Services starting... ($i/10)${NC}"
-#     sleep 15
-# done
-
-# if [ "$SERVICES_RUNNING" = "false" ]; then
-#     echo -e "${RED}✗ Elasticsearch services failed to start${NC}"
-#     echo -e "${YELLOW}Check service status: docker service ls --filter name=elk_${NC}"
-#     exit 1
-# fi
-
-# # Simple connectivity test using status endpoints
-# echo -e "${YELLOW}Testing service connectivity...${NC}"
-
-# # Test Elasticsearch status
-# for i in {1..5}; do
-#     if curl -sf --insecure https://elasticsearch:5601/api/status >/dev/null 2>&1; then
-#         echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
-#         break
-#     fi
-    
-#     if [ $i -eq 5 ]; then
-#         echo -e "${YELLOW}⚠ Elasticsearch not responding yet, but continuing setup...${NC}"
-#         echo -e "${BLUE}The cluster may need more time to fully initialize${NC}"
-#     else
-#         echo -e "${BLUE}Waiting for Elasticsearch...${NC}"
-#         sleep 20
-#     fi
-# done
-
-# # Test Kibana status
-# for i in {1..5}; do
-#     if curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; then
-#         echo -e "${GREEN}✓ Kibana is responding${NC}"
-#         break
-#     fi
-    
-#     if [ $i -eq 5 ]; then
-#         echo -e "${YELLOW}⚠ Kibana not responding yet, but continuing setup...${NC}"
-#     else
-#         echo -e "${BLUE}Waiting for Kibana...${NC}"
-#         sleep 20
-#     fi
-# done
-
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
 docker stack deploy -d -c docker-stack.yml elk
 
-# Simple wait for services to start
+# Simple wait and basic check
 echo -e "${YELLOW}Waiting for services to start...${NC}"
-sleep 60
+sleep 30
 
-# Basic connectivity check - don't fail if it doesn't work
-echo -e "${YELLOW}Testing basic connectivity...${NC}"
-if curl -sf --connect-timeout 10 --max-time 15 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200" >/dev/null 2>&1; then
-    echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
-else
-    echo -e "${YELLOW}⚠ Elasticsearch not responding yet, but continuing...${NC}"
+echo -e "${YELLOW}Checking if Elasticsearch services are running...${NC}"
+
+# Check if services are deployed (not necessarily ready)
+SERVICES_RUNNING=false
+for i in {1..10}; do
+    ES_SERVICES=$(docker service ls --filter name=elk_elasticsearch --format "{{.Replicas}}" | grep -c "1/1" || echo "0")
+    if [ "$ES_SERVICES" -ge 1 ]; then
+        echo -e "${GREEN}✓ Elasticsearch services are running${NC}"
+        SERVICES_RUNNING=true
+        break
+    fi
+    echo -e "${BLUE}Services starting... ($i/10)${NC}"
+    sleep 15
+done
+
+if [ "$SERVICES_RUNNING" = "false" ]; then
+    echo -e "${RED}✗ Elasticsearch services failed to start${NC}"
+    echo -e "${YELLOW}Check service status: docker service ls --filter name=elk_${NC}"
+    exit 1
 fi
 
-# ========================================
-# SIMPLIFIED USER SETUP
-# ========================================
+# Simple connectivity test using status endpoints
+echo -e "${YELLOW}Testing service connectivity...${NC}"
 
-echo -e "${GREEN}=== Setting up Elasticsearch Users and Roles ===${NC}"
+# Test Elasticsearch status
+for i in {1..5}; do
+    if curl -sf --insecure https://elasticsearch:5601/api/status >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
+        break
+    fi
+    
+    if [ $i -eq 5 ]; then
+        echo -e "${YELLOW}⚠ Elasticsearch not responding yet, but continuing setup...${NC}"
+        echo -e "${BLUE}The cluster may need more time to fully initialize${NC}"
+    else
+        echo -e "${BLUE}Waiting for Elasticsearch...${NC}"
+        sleep 20
+    fi
+done
 
-# Simple wait function - just retry basic connection
-function wait_for_elasticsearch_simple {
-    echo -e "${YELLOW}Waiting for Elasticsearch to be ready for user setup...${NC}"
+# Test Kibana status
+for i in {1..5}; do
+    if curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Kibana is responding${NC}"
+        break
+    fi
     
-    for i in {1..30}; do
-        if curl -sf --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_security/user" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ Elasticsearch security API is ready${NC}"
-            return 0
-        fi
-        echo -e "${BLUE}Waiting for security API... ($i/30)${NC}"
-        sleep 10
-    done
-    
-    echo -e "${RED}✗ Elasticsearch security API not ready${NC}"
-    return 1
-}
+    if [ $i -eq 5 ]; then
+        echo -e "${YELLOW}⚠ Kibana not responding yet, but continuing setup...${NC}"
+    else
+        echo -e "${BLUE}Waiting for Kibana...${NC}"
+        sleep 20
+    fi
+done
 
 # Simple user creation function
 function create_or_update_user_simple {
@@ -298,7 +259,6 @@ fi
 echo -e "${GREEN}✓ Setup completed successfully!${NC}"
 echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
 echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
-echo -e "${YELLOW}Access Elasticsearch at: https://localhost:9200${NC}"
 
 # Final status check
 echo -e "${BLUE}=== Final Service Status ===${NC}"
