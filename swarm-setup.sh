@@ -241,9 +241,6 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         echo -e "${RED}✗ Error incrementing retry counter${NC}"
         exit 1
     }
-    
-    echo -e "${BLUE}Waiting 5 seconds before next check... (attempt ${RETRY_COUNT}/${MAX_RETRIES})${NC}"
-    
     # Add a check to see if we should continue
     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
         break
