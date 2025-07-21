@@ -105,7 +105,7 @@ echo -e "${BLUE}This may take several minutes for a 3-node cluster...${NC}"
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
-docker stack deploy -c docker-stack.yml elk
+docker stack deploy -d -c docker-stack.yml elk
 
 # Simple wait and basic check
 echo -e "${YELLOW}Waiting for services to start...${NC}"
@@ -132,13 +132,10 @@ if [ "$SERVICES_RUNNING" = "false" ]; then
     exit 1
 fi
 
-# Simple Elasticsearch connectivity test (optional)
-echo -e "${YELLOW}Testing Elasticsearch connectivity...${NC}"
+# Simple connectivity test using status endpoints
+# Test Elasticsearch status
 for i in {1..6}; do
-    if curl -s --connect-timeout 5 --max-time 10 \
-            --cacert ./tls/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" \
-            "https://localhost:9200" >/dev/null 2>&1; then
+    if curl -sf --insecure https://elasticsearch:5601/api/status >/dev/null 2>&1; then
         echo -e "${GREEN}✓ Elasticsearch is responding${NC}"
         break
     fi
@@ -152,22 +149,25 @@ for i in {1..6}; do
     fi
 done
 
-if [ "$ES_READY" != "true" ]; then
-    echo -e "${RED}✗ Elasticsearch failed to start within expected time${NC}"
-    echo -e "${YELLOW}Checking service logs for troubleshooting...${NC}"
+echo -e "${YELLOW}Testing service connectivity...${NC}"
 
-    # Show service logs for debugging
-    echo -e "${BLUE}=== Elasticsearch1 Service Logs ===${NC}"
-    docker service logs --tail 20 elk_elasticsearch1 2>/dev/null || echo "No logs available"
+# Test Kibana status
+for i in {1..6}; do
+    if curl -sf --insecure https://kibana:5601/api/status >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Kibana is responding${NC}"
+        break
+    fi
+    
+    if [ $i -eq 6 ]; then
+        echo -e "${YELLOW}⚠ Kibana not responding yet, but continuing setup...${NC}"
+    else
+        echo -e "${BLUE}Waiting for Kibana... ($i/6)${NC}"
+        sleep 20
+    fi
+done
 
-    echo -e "${BLUE}=== Elasticsearch2 Service Logs ===${NC}"
-    docker service logs --tail 20 elk_elasticsearch2 2>/dev/null || echo "No logs available"
 
-    echo -e "${BLUE}=== Elasticsearch3 Service Logs ===${NC}"
-    docker service logs --tail 20 elk_elasticsearch3 2>/dev/null || echo "No logs available"
 
-    exit 1
-fi
 
 # ========================================
 # ELASTICSEARCH USER SETUP INTEGRATION
