@@ -236,9 +236,19 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         fi
     fi
 
-    # Always increment counter and sleep at the end of the loop
-    ((RETRY_COUNT++))
+    # Safely increment counter using arithmetic expansion with error handling
+    RETRY_COUNT=$((RETRY_COUNT + 1)) || {
+        echo -e "${RED}✗ Error incrementing retry counter${NC}"
+        exit 1
+    }
+    
     echo -e "${BLUE}Waiting 5 seconds before next check... (attempt ${RETRY_COUNT}/${MAX_RETRIES})${NC}"
+    
+    # Add a check to see if we should continue
+    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+        break
+    fi
+    
     sleep 5
 done
 
