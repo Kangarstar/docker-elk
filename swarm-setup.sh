@@ -154,8 +154,8 @@ echo -e "${GREEN}=== Setting up Elasticsearch Users and Roles ===${NC}"
 
 # Override functions for TLS support
 function wait_for_elasticsearch {
-    local elasticsearch_host="localhost"  # Using port forwarding
-    local -a args=( '-4' '-s' '-D-' '-m15' '-w' '%{http_code}' 
+    local elasticsearch_host="127.0.0.1"  # Using port forwarding
+    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}' 
         "--cacert" "./tls/certs/ca/ca.crt"
         "https://${elasticsearch_host}:9200/" )
 
@@ -191,7 +191,7 @@ function wait_for_elasticsearch {
 }
 
 function wait_for_builtin_users {
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="127.0.0.1"
     local -a args=( '-s' '-D-' '-m15' 
         "--cacert" "./tls/certs/ca/ca.crt"
         "https://${elasticsearch_host}:9200/_security/user?pretty" )
@@ -233,7 +233,7 @@ function wait_for_builtin_users {
 
 function check_user_exists {
     local username=$1
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="127.0.0.1"
 
     local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
         "--cacert" "./tls/certs/ca/ca.crt"
@@ -268,7 +268,7 @@ function check_user_exists {
 function set_user_password {
     local username=$1
     local password=$2
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="127.0.0.1"
 
     local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
         "--cacert" "./tls/certs/ca/ca.crt"
@@ -301,7 +301,7 @@ function create_user {
     local username=$1
     local password=$2
     local role=$3
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="127.0.0.1"
 
     local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
         "--cacert" "./tls/certs/ca/ca.crt"
@@ -333,7 +333,7 @@ function create_user {
 function ensure_role {
     local name=$1
     local body=$2
-    local elasticsearch_host="localhost"
+    local elasticsearch_host="127.0.0.1"
 
     local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
         "--cacert" "./tls/certs/ca/ca.crt"
