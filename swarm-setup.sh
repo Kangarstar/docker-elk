@@ -100,15 +100,13 @@ else
     echo -e "${YELLOW}⚠ Less than 3 nodes available. Elasticsearch nodes may be placed on same nodes.${NC}"
 fi
 
-echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
-
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
 docker stack deploy -d -c docker-stack.yml elk
 
 # Simple wait and basic check
 echo -e "${YELLOW}Waiting for services to start...${NC}"
-sleep 30
+sleep 5
 
 echo -e "${YELLOW}Checking if Elasticsearch services are running...${NC}"
 
@@ -165,72 +163,309 @@ for i in {1..5}; do
     fi
 done
 
-# Simple user creation function
-function create_or_update_user_simple {
+
+# ========================================
+# ELASTICSEARCH USER SETUP INTEGRATION
+# ========================================
+
+echo -e "${GREEN}=== Setting up Elasticsearch Users and Roles ===${NC}"
+
+# Override functions for TLS support
+function wait_for_elasticsearch {
+    local elasticsearch_host="localhost"  # Using port forwarding
+    local -a args=( '-s' '-D-' '-m15' '-w'
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/" )
+
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
+    fi
+
+    local -i result=1
+    local output
+
+    # retry for max 300s (60*5s)
+    for _ in $(seq 1 60); do
+        local -i exit_code=0
+        output="$(curl "${args[@]}")" || exit_code=$?
+
+        if ((exit_code)); then
+            result=$exit_code
+        fi
+
+        if [[ "${output: -3}" -eq 200 ]]; then
+            result=0
+            break
+        fi
+
+        sleep 5
+    done
+
+    if ((result)) && [[ "${output: -3}" -ne 000 ]]; then
+        echo -e "\n${output::-3}"
+    fi
+
+    return $result
+}
+
+function wait_for_builtin_users {
+    local elasticsearch_host="localhost"
+    local -a args=( '-s' '-D-' '-m15' 
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/_security/user?pretty" )
+
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
+    fi
+
+    local -i result=1
+    local line
+    local -i exit_code
+    local -i num_users
+
+    # retry for max 30s (30*1s)
+    for _ in $(seq 1 30); do
+        num_users=0
+
+        while IFS= read -r line || ! exit_code="$line"; do
+            if [[ "$line" =~ _reserved.+true ]]; then
+                (( num_users++ ))
+            fi
+        done < <(curl "${args[@]}"; printf '%s' "$?")
+
+        if ((exit_code)); then
+            result=$exit_code
+        fi
+
+        # we expect more than just the 'elastic' user in the result
+        if (( num_users > 1 )); then
+            result=0
+            break
+        fi
+
+        sleep 1
+    done
+
+    return $result
+}
+
+function check_user_exists {
+    local username=$1
+    local elasticsearch_host="localhost"
+
+    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/_security/user/${username}"
+        )
+
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
+    fi
+
+    local -i result=1
+    local -i exists=0
+    local output
+
+    output="$(curl "${args[@]}")"
+    if [[ "${output: -3}" -eq 200 || "${output: -3}" -eq 404 ]]; then
+        result=0
+    fi
+    if [[ "${output: -3}" -eq 200 ]]; then
+        exists=1
+    fi
+
+    if ((result)); then
+        echo -e "\n${output::-3}"
+    else
+        echo "$exists"
+    fi
+
+    return $result
+}
+
+function set_user_password {
+    local username=$1
+    local password=$2
+    local elasticsearch_host="localhost"
+
+    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/_security/user/${username}/_password"
+        '-X' 'POST'
+        '-H' 'Content-Type: application/json'
+        '-d' "{\"password\" : \"${password}\"}"
+        )
+
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
+    fi
+
+    local -i result=1
+    local output
+
+    output="$(curl "${args[@]}")"
+    if [[ "${output: -3}" -eq 200 ]]; then
+        result=0
+    fi
+
+    if ((result)); then
+        echo -e "\n${output::-3}\n"
+    fi
+
+    return $result
+}
+
+function create_user {
     local username=$1
     local password=$2
     local role=$3
+    local elasticsearch_host="localhost"
 
-    echo -e "${YELLOW}Setting up user: $username${NC}"
+    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/_security/user/${username}"
+        '-X' 'POST'
+        '-H' 'Content-Type: application/json'
+        '-d' "{\"password\":\"${password}\",\"roles\":[\"${role}\"]}"
+        )
 
-    if curl -sf --connect-timeout 10 --max-time 15 \
-            --cacert ./tls/certs/ca/ca.crt \
-            -u "elastic:${ELASTIC_PASSWORD}" \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -d "{\"password\":\"${password}\",\"roles\":[\"${role}\"]}" \
-            "https://localhost:9200/_security/user/${username}" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓ User $username configured${NC}"
-        return 0
-    else
-        echo -e "${YELLOW}⚠ Failed to configure user $username${NC}"
-        return 1
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
     fi
+
+    local -i result=1
+    local output
+
+    output="$(curl "${args[@]}")"
+    if [[ "${output: -3}" -eq 200 ]]; then
+        result=0
+    fi
+
+    if ((result)); then
+        echo -e "\n${output::-3}\n"
+    fi
+
+    return $result
 }
 
-# Simple role creation function
-function create_role_simple {
-    local role_name=$1
-    local role_file=$2
+function ensure_role {
+    local name=$1
+    local body=$2
+    local elasticsearch_host="localhost"
 
-    if [[ -f "$role_file" ]]; then
-        echo -e "${YELLOW}Setting up role: $role_name${NC}"
+    local -a args=( '-s' '-D-' '-m15' '-w' '%{http_code}'
+        "--cacert" "./tls/certs/ca/ca.crt"
+        "https://${elasticsearch_host}:9200/_security/role/${name}"
+        '-X' 'POST'
+        '-H' 'Content-Type: application/json'
+        '-d' "$body"
+        )
 
-        if curl -sf --connect-timeout 10 --max-time 15 \
-                --cacert ./tls/certs/ca/ca.crt \
-                -u "elastic:${ELASTIC_PASSWORD}" \
-                -X POST \
-                -H "Content-Type: application/json" \
-                -d "@${role_file}" \
-                "https://localhost:9200/_security/role/${role_name}" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓ Role $role_name configured${NC}"
-        else
-            echo -e "${YELLOW}⚠ Failed to configure role $role_name${NC}"
-        fi
+    if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
+        args+=( '-u' "elastic:${ELASTIC_PASSWORD}" )
     fi
+
+    local -i result=1
+    local output
+
+    output="$(curl "${args[@]}")"
+    if [[ "${output: -3}" -eq 200 ]]; then
+        result=0
+    fi
+
+    if ((result)); then
+        echo -e "\n${output::-3}\n"
+    fi
+
+    return $result
 }
+
+# Users declarations
+declare -A users_passwords
+users_passwords=(
+    [logstash_internal]="${LOGSTASH_INTERNAL_PASSWORD:-}"
+    [kibana_system]="${KIBANA_SYSTEM_PASSWORD:-}"
+    [metricbeat_internal]="${METRICBEAT_INTERNAL_PASSWORD:-}"
+    [filebeat_internal]="${FILEBEAT_INTERNAL_PASSWORD:-}"
+    [heartbeat_internal]="${HEARTBEAT_INTERNAL_PASSWORD:-}"
+    [monitoring_internal]="${MONITORING_INTERNAL_PASSWORD:-}"
+    [beats_system]="${BEATS_SYSTEM_PASSWORD:-}"
+)
+
+declare -A users_roles
+users_roles=(
+    [logstash_internal]='logstash_writer'
+    [metricbeat_internal]='metricbeat_writer'
+    [filebeat_internal]='filebeat_writer'
+    [heartbeat_internal]='heartbeat_writer'
+    [monitoring_internal]='remote_monitoring_collector'
+)
+
+declare -A roles_files
+roles_files=(
+    [logstash_writer]='logstash_writer.json'
+    [metricbeat_writer]='metricbeat_writer.json'
+    [filebeat_writer]='filebeat_writer.json'
+    [heartbeat_writer]='heartbeat_writer.json'
+)
+
+log 'Waiting for built-in users initialization'
+declare -i exit_code=0
+wait_for_builtin_users || exit_code=$?
+
+if ((exit_code)); then
+    suberr 'Timed out waiting for built-in users'
+    exit $exit_code
+fi
+
+sublog 'Built-in users were initialized'
 
 # Create roles
-echo -e "${YELLOW}Creating roles...${NC}"
-create_role_simple "logstash_writer" "./setup/roles/logstash_writer.json"
-create_role_simple "metricbeat_writer" "./setup/roles/metricbeat_writer.json"
-create_role_simple "filebeat_writer" "./setup/roles/filebeat_writer.json"
-create_role_simple "heartbeat_writer" "./setup/roles/heartbeat_writer.json"
+for role in "${!roles_files[@]}"; do
+    log "Role '$role'"
+    
+    declare body_file
+    body_file="${PWD}/setup/roles/${roles_files[$role]:-}"
+    if [[ ! -f "${body_file:-}" ]]; then
+        sublog "No role body found at '${body_file}', skipping"
+        continue
+    fi
+    
+    sublog 'Creating/updating'
+    ensure_role "$role" "$(<"${body_file}")"
+done
 
 # Create/update users
-echo -e "${YELLOW}Creating users...${NC}"
-[[ -n "${LOGSTASH_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "logstash_internal" "${LOGSTASH_INTERNAL_PASSWORD}" "logstash_writer"
-[[ -n "${KIBANA_SYSTEM_PASSWORD:-}" ]] && create_or_update_user_simple "kibana_system" "${KIBANA_SYSTEM_PASSWORD}" "kibana_system"
-[[ -n "${METRICBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "metricbeat_internal" "${METRICBEAT_INTERNAL_PASSWORD}" "metricbeat_writer"
-[[ -n "${FILEBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "filebeat_internal" "${FILEBEAT_INTERNAL_PASSWORD}" "filebeat_writer"
-[[ -n "${HEARTBEAT_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "heartbeat_internal" "${HEARTBEAT_INTERNAL_PASSWORD}" "heartbeat_writer"
-[[ -n "${MONITORING_INTERNAL_PASSWORD:-}" ]] && create_or_update_user_simple "monitoring_internal" "${MONITORING_INTERNAL_PASSWORD}" "remote_monitoring_collector"
-[[ -n "${BEATS_SYSTEM_PASSWORD:-}" ]] && create_or_update_user_simple "beats_system" "${BEATS_SYSTEM_PASSWORD}" "beats_system"
+for user in "${!users_passwords[@]}"; do
+    log "User '$user'"
+    if [[ -z "${users_passwords[$user]:-}" ]]; then
+        sublog 'No password defined, skipping'
+        continue
+    fi
+    
+    declare -i user_exists=0
+    user_exists="$(check_user_exists "$user")"
+    
+    if ((user_exists)); then
+        sublog 'User exists, setting password'
+        set_user_password "$user" "${users_passwords[$user]}"
+    else
+        if [[ -z "${users_roles[$user]:-}" ]]; then
+            suberr 'No role defined, skipping creation'
+            continue
+        fi
 
-echo -e "${GREEN}✓ User setup completed${NC}"
+        sublog 'User does not exist, creating'
+        create_user "$user" "${users_passwords[$user]}" "${users_roles[$user]}"
+    fi
+done
+
+echo -e "${GREEN}✓ Elasticsearch users and roles setup completed!${NC}"
+
 echo -e "${GREEN}✓ Setup completed successfully!${NC}"
 echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
 echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
+echo -e "${YELLOW}Access Elasticsearch at: https://localhost:9200${NC}"
 
 # Final status check
 echo -e "${BLUE}=== Final Service Status ===${NC}"
