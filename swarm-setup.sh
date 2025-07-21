@@ -82,6 +82,7 @@ update_secrets() {
             docker secret create "$secret_name" "$secret_file"
         else
             echo -e "${RED}✗ Warning: $secret_file not found for secret $secret_name${NC}"
+            exit 1
         fi
     done
     
