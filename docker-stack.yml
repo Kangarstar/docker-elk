@@ -328,8 +328,6 @@ services:
   metricbeat:
     image: "docker.elastic.co/beats/metricbeat:${ELASTIC_VERSION:-9.0.3}"
     user: root
-    privileged: true
-    pid: "host"
     command:
       - -e
       - --system.hostfs=/hostfs
@@ -342,8 +340,6 @@ services:
       - SYS_ADMIN
       - DAC_READ_SEARCH
       - SYS_PTRACE      
-    security_opt:
-      - apparmor:unconfined
     environment:
       METRICBEAT_INTERNAL_PASSWORD: ${METRICBEAT_INTERNAL_PASSWORD:-}
       MONITORING_INTERNAL_PASSWORD: ${MONITORING_INTERNAL_PASSWORD:-}
