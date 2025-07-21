@@ -12,9 +12,10 @@ echo -e "${GREEN}=== ELK Stack Swarm Setup ===${NC}"
 
 # Load environment variables
 if [ -f .env ]; then
-    set -a
-    source .env
-    set +a
+#    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+	set -a
+	source .env
+	set +a
     echo -e "${GREEN}✓ Loaded environment variables${NC}"
 else
     echo -e "${RED}✗ .env file not found${NC}"
@@ -101,78 +102,49 @@ fi
 
 # Deploy the stack
 echo -e "${YELLOW}Deploying ELK stack...${NC}"
-docker stack deploy -c docker-stack.yml elk
+docker stack deploy -d -c docker-stack.yml elk
 
-# Wait for services to start and check port publishing
-echo -e "${YELLOW}Waiting for services to start...${NC}"
-sleep 10
+# Wait longer for Elasticsearch cluster to be ready
+echo -e "${YELLOW}Waiting for Elasticsearch cluster to be ready...${NC}"
+echo -e "${BLUE}This may take several minutes for a 3-node cluster...${NC}"
+sleep 60  # Increased from 30 seconds
 
-echo -e "${YELLOW}Checking if Elasticsearch services are running...${NC}"
+# Enhanced readiness check with better error reporting
+MAX_RETRIES=60  # Increased from 30
+RETRY_COUNT=0
+ES_READY=false
 
-# Check if services are deployed (not necessarily ready)
-SERVICES_RUNNING=false
-for i in {1..20}; do
-    ES_SERVICES=$(docker service ls --filter name=elk_elasticsearch --format "{{.Replicas}}" | grep -c "1/1" || echo "0")
-    if [ "$ES_SERVICES" -ge 1 ]; then
-        echo -e "${GREEN}✓ Elasticsearch services are running${NC}"
-        SERVICES_RUNNING=true
-        break
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    echo -e "${YELLOW}Checking Elasticsearch readiness... (${RETRY_COUNT}/${MAX_RETRIES})${NC}"
+
+    # Check if Elasticsearch is responding
+    if curl -s --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" > /tmp/es_health.json 2>/dev/null; then
+        CLUSTER_STATUS=$(cat /tmp/es_health.json | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+        ACTIVE_NODES=$(cat /tmp/es_health.json | grep -o '"number_of_nodes":[0-9]*' | cut -d':' -f2)
+
+        echo -e "${BLUE}Cluster status: ${CLUSTER_STATUS}, Active nodes: ${ACTIVE_NODES}${NC}"
+
+        # Check if cluster is green or yellow (yellow is acceptable for single-node or during startup)
+        if [[ "$CLUSTER_STATUS" == "green" ]] || [[ "$CLUSTER_STATUS" == "yellow" ]]; then
+            echo -e "${GREEN}✓ Elasticsearch cluster is ready (${CLUSTER_STATUS})${NC}"
+            ES_READY=true
+            break
+        fi
+    else
+        # If curl fails, check if it's a connection issue or authentication issue
+        HTTP_CODE=$(curl -s -w "%{http_code}" -o /dev/null --connect-timeout 5 --max-time 10 --cacert ./tls/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" "https://localhost:9200/_cluster/health" 2>/dev/null || echo "000")
+        echo -e "${BLUE}HTTP response code: ${HTTP_CODE}${NC}"
+
+        if [ "$HTTP_CODE" == "401" ]; then
+            echo -e "${RED}✗ Authentication failed. Check ELASTIC_PASSWORD${NC}"
+        elif [ "$HTTP_CODE" == "000" ]; then
+            echo -e "${BLUE}Connection refused or timeout. Elasticsearch may still be starting...${NC}"
+        fi
     fi
-    echo -e "${BLUE}Services starting... ($i/20)${NC}"
-    sleep 10
+
+    sleep 10  # Increased from 10 seconds
+    ((RETRY_COUNT++))
 done
-
-if [ "$SERVICES_RUNNING" = "false" ]; then
-    echo -e "${RED}✗ Elasticsearch services failed to start${NC}"
-    echo -e "${YELLOW}Check service status: docker service ls --filter name=elk_${NC}"
-    exit 1
-fi
-
-# Debug: Check if port 9200 is accessible
-echo -e "${YELLOW}=== Debugging Port Accessibility ===${NC}"
-
-# Check if port 9200 is listening
-echo -e "${BLUE}Checking if port 9200 is listening...${NC}"
-if netstat -tuln 2>/dev/null | grep -q ":9200 " || ss -tuln 2>/dev/null | grep -q ":9200 "; then
-    echo -e "${GREEN}✓ Port 9200 is listening${NC}"
-else
-    echo -e "${RED}✗ Port 9200 is not listening on localhost${NC}"
-    echo -e "${YELLOW}This is likely the issue. Make sure your docker-stack.yml publishes port 9200:${NC}"
-    echo -e "${YELLOW}Example:${NC}"
-    echo -e "${BLUE}  elasticsearch:${NC}"
-    echo -e "${BLUE}    ports:${NC}"
-    echo -e "${BLUE}      - '9200:9200'${NC}"
-    
-    # Check published ports
-    echo -e "${BLUE}Current published ports for Elasticsearch services:${NC}"
-    docker service ls --filter name=elk_elasticsearch --format "table {{.Name}}\t{{.Ports}}"
-    
-    echo -e "${YELLOW}Continuing anyway, but user setup may fail...${NC}"
-fi
-
-# Test basic connectivity to localhost:9200
-echo -e "${BLUE}Testing basic connectivity to localhost:9200...${NC}"
-if timeout 5 bash -c "</dev/tcp/localhost/9200" 2>/dev/null; then
-    echo -e "${GREEN}✓ TCP connection to localhost:9200 successful${NC}"
-else
-    echo -e "${RED}✗ Cannot establish TCP connection to localhost:9200${NC}"
-    echo -e "${YELLOW}This confirms port publishing issue${NC}"
-fi
-
-# Test HTTPS connectivity (without auth)
-echo -e "${BLUE}Testing HTTPS connectivity...${NC}"
-HTTPS_TEST=$(curl -s -k --connect-timeout 5 https://localhost:9200 2>&1 || echo "FAILED")
-if [[ "$HTTPS_TEST" != "FAILED" ]]; then
-    echo -e "${GREEN}✓ HTTPS connection successful (response: ${HTTPS_TEST:0:50}...)${NC}"
-else
-    echo -e "${RED}✗ HTTPS connection failed${NC}"
-fi
-
-echo -e "${YELLOW}=== End Port Debug ===${NC}"
-
-# Wait a bit more for Elasticsearch to fully initialize
-echo -e "${YELLOW}Giving Elasticsearch more time to fully initialize...${NC}"
-sleep 30
 
 # ========================================
 # ELASTICSEARCH USER SETUP INTEGRATION
@@ -194,41 +166,25 @@ function wait_for_elasticsearch {
     local -i result=1
     local output
 
-    echo -e "${BLUE}Waiting for Elasticsearch at https://localhost:9200/ ...${NC}"
-
     # retry for max 300s (60*5s)
-    for i in $(seq 1 60); do
+    for _ in $(seq 1 60); do
         local -i exit_code=0
-        echo -e "${BLUE}Attempt $i/60: Testing Elasticsearch connection...${NC}"
-        
-        output="$(curl "${args[@]}" 2>&1)" || exit_code=$?
+        output="$(curl "${args[@]}")" || exit_code=$?
 
         if ((exit_code)); then
             result=$exit_code
-            echo -e "${YELLOW}Curl exit code: $exit_code${NC}"
         fi
-
-        echo -e "${BLUE}Response status: ${output: -3}${NC}"
 
         if [[ "${output: -3}" -eq 200 ]]; then
             result=0
-            echo -e "${GREEN}✓ Elasticsearch is ready!${NC}"
             break
-        elif [[ "${output: -3}" -eq 401 ]]; then
-            echo -e "${YELLOW}Got 401 - Elasticsearch is up but authentication failed. Check ELASTIC_PASSWORD${NC}"
-            echo -e "${YELLOW}Current password length: ${#ELASTIC_PASSWORD}${NC}"
-        elif [[ "${output: -3}" -eq 000 ]]; then
-            echo -e "${YELLOW}Connection refused - Elasticsearch not ready yet${NC}"
-        else
-            echo -e "${YELLOW}Got HTTP status: ${output: -3}${NC}"
         fi
 
         sleep 5
     done
 
     if ((result)) && [[ "${output: -3}" -ne 000 ]]; then
-        echo -e "\n${RED}Final error response:${NC}"
-        echo -e "${output::-3}"
+        echo -e "\n${output::-3}"
     fi
 
     return $result
@@ -249,30 +205,23 @@ function wait_for_builtin_users {
     local -i exit_code
     local -i num_users
 
-    echo -e "${BLUE}Checking for built-in users...${NC}"
-
-    # retry for max 60s (60*1s)
-    for i in $(seq 1 60); do
+    # retry for max 30s (30*1s)
+    for _ in $(seq 1 30); do
         num_users=0
-        echo -e "${BLUE}Attempt $i/60: Checking built-in users...${NC}"
 
         while IFS= read -r line || ! exit_code="$line"; do
             if [[ "$line" =~ _reserved.+true ]]; then
                 (( num_users++ ))
             fi
-        done < <(curl "${args[@]}" 2>&1; printf '%s' "$?")
+        done < <(curl "${args[@]}"; printf '%s' "$?")
 
         if ((exit_code)); then
             result=$exit_code
-            echo -e "${YELLOW}Request failed with exit code: $exit_code${NC}"
         fi
-
-        echo -e "${BLUE}Found $num_users built-in users${NC}"
 
         # we expect more than just the 'elastic' user in the result
         if (( num_users > 1 )); then
             result=0
-            echo -e "${GREEN}✓ Built-in users are initialized${NC}"
             break
         fi
 
@@ -299,7 +248,7 @@ function check_user_exists {
     local -i exists=0
     local output
 
-    output="$(curl "${args[@]}" 2>&1)"
+    output="$(curl "${args[@]}")"
     if [[ "${output: -3}" -eq 200 || "${output: -3}" -eq 404 ]]; then
         result=0
     fi
@@ -336,7 +285,7 @@ function set_user_password {
     local -i result=1
     local output
 
-    output="$(curl "${args[@]}" 2>&1)"
+    output="$(curl "${args[@]}")"
     if [[ "${output: -3}" -eq 200 ]]; then
         result=0
     fi
@@ -369,7 +318,7 @@ function create_user {
     local -i result=1
     local output
 
-    output="$(curl "${args[@]}" 2>&1)"
+    output="$(curl "${args[@]}")"
     if [[ "${output: -3}" -eq 200 ]]; then
         result=0
     fi
@@ -401,7 +350,7 @@ function ensure_role {
     local -i result=1
     local output
 
-    output="$(curl "${args[@]}" 2>&1)"
+    output="$(curl "${args[@]}")"
     if [[ "${output: -3}" -eq 200 ]]; then
         result=0
     fi
@@ -442,34 +391,8 @@ roles_files=(
     [heartbeat_writer]='heartbeat_writer.json'
 )
 
-# Check environment variables
-echo -e "${BLUE}=== Environment Check ===${NC}"
-if [[ -n "${ELASTIC_PASSWORD:-}" ]]; then
-    echo -e "${GREEN}✓ ELASTIC_PASSWORD is set (length: ${#ELASTIC_PASSWORD})${NC}"
-else
-    echo -e "${RED}✗ ELASTIC_PASSWORD is not set${NC}"
-    echo -e "${YELLOW}Make sure your .env file contains ELASTIC_PASSWORD=your_password${NC}"
-    exit 1
-fi
-
-log 'Waiting for Elasticsearch to be ready'
-declare -i exit_code=0
-wait_for_elasticsearch || exit_code=$?
-
-if ((exit_code)); then
-    suberr 'Timed out waiting for Elasticsearch'
-    echo -e "${RED}Common issues:${NC}"
-    echo -e "${YELLOW}1. Port 9200 is not published in docker-stack.yml${NC}"
-    echo -e "${YELLOW}2. ELASTIC_PASSWORD is incorrect${NC}"
-    echo -e "${YELLOW}3. TLS certificates are not properly configured${NC}"
-    echo -e "${YELLOW}4. Elasticsearch service is not healthy${NC}"
-    exit $exit_code
-fi
-
-sublog 'Elasticsearch is ready'
-
 log 'Waiting for built-in users initialization'
-exit_code=0
+declare -i exit_code=0
 wait_for_builtin_users || exit_code=$?
 
 if ((exit_code)); then
@@ -524,7 +447,6 @@ echo -e "${GREEN}✓ Elasticsearch users and roles setup completed!${NC}"
 echo -e "${GREEN}✓ Setup completed successfully!${NC}"
 echo -e "${GREEN}✓ ELK Stack is now running in Docker Swarm mode${NC}"
 echo -e "${YELLOW}Access Kibana at: https://localhost:5601${NC}"
-echo -e "${YELLOW}Access Elasticsearch at: https://localhost:9200${NC}"
 
 # Final status check
 echo -e "${BLUE}=== Final Service Status ===${NC}"
