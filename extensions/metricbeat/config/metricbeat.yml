@@ -88,7 +88,7 @@ processors:
   - add_docker_metadata: ~
   - add_kubernetes_metadata: ~
 
-logging.level: info
+logging.level: debug
 logging.to_stderr: true
 
 monitoring.enabled: false
