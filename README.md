@@ -96,7 +96,7 @@ git clone https://github.com/NTE-Airport-DSI/docker-elk.git
 Ensuite, generer les certificats X.509 pour activer les communications en TLS entre composants:
 
 ```sh
-$ sudo docker compose up tls -d
+sudo docker compose up tls -d
 ```
 
 > [!NOTE]
@@ -299,7 +299,7 @@ tls/certs/elasticsearch
 et relancez la commmande:
 
 ```sh
-$ sudo docker compose up tls -d
+sudo docker compose up tls -d
 ```
 
 ### Autre manière de modifier les mots de passe
