@@ -1,5 +1,5 @@
 ---
-## Default Kibana configuration from Kibana base image.
+## Configuration par défaut de Kibana.
 ## https://github.com/elastic/kibana/blob/main/src/dev/build/tasks/os_packages/docker_generator/templates/kibana_yml.template.ts
 #
 server.name: kibana

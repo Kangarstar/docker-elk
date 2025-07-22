@@ -1,16 +1,13 @@
-# TLS certificates
+# Certificats TLS
 
-The purpose of this directory is to store the X.509 certificates and private keys used for securing communications
-between Elastic components over TLS.
+Ce dossier stocke les certificats X.509 ainsi que les clefs privées utilisées pour chiffrer les communications entre composants Elastic avec TLS.
 
-They can be generated using the `docker compose up tls` command, which materializes a file tree similar to the one
-below (depending on the contents of the [instances.yml](./instances.yml) file):
+Ils peuvent être générés avec la commande `docker compose up tls`, qui va créer une arborescence similaire a celle ci dessous contenant les certificats et clefs.
+(selon le contenu du fichier [instances.yml](./instances.yml)):
 
 ```tree
 certs
-├── apm-server
-│   ├── apm-server.crt
-│   └── apm-server.key
+│    
 ├── ca
 │   ├── ca.crt
 │   └── ca.key

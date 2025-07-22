@@ -1,5 +1,5 @@
 ---
-## Default Elasticsearch configuration from Elasticsearch base image.
+## Configuration par défaut d'Elasticsearch.
 ## https://github.com/elastic/elasticsearch/blob/main/distribution/docker/src/docker/config/elasticsearch.yml
 #
 cluster.name: docker-cluster

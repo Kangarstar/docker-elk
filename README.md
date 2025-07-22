@@ -30,7 +30,7 @@ cd /docker-elk
 ```
 
 ```sh
-sudo bash swarm-setup.sh
+sudo bash elk-setup.sh
 ```
 
 
@@ -96,7 +96,7 @@ git clone https://github.com/NTE-Airport-DSI/docker-elk.git
 Ensuite, generer les certificats X.509 pour activer les communications en TLS entre composants:
 
 ```sh
-$ sudo docker compose up tls -d
+sudo docker compose up tls -d
 ```
 
 > [!NOTE]
@@ -107,7 +107,7 @@ $ sudo docker compose up tls -d
 Une fois que les certificats TLS sont générés, initialiser le les utilisateurs, groupes et cluster avec cette commande: 
 
 ```sh
-sudo bash swarm-setup.sh
+sudo bash elk-setup.sh
 ```
 
 Si vous rencontrez un problème avec l'execution du script setup, éxécutez ce script de diagnostic:
@@ -201,11 +201,11 @@ cat /path/to/logfile.log | nc --send-only localhost 50000  # nmap
 
 ### Suppression
 
-Les données Elasticsearch sont stockées dans des volumes docker. Par défaut, l'execution du script `swarm-rm.sh` va eteindre les conteneurs sans supprimer de données:
+Les données Elasticsearch sont stockées dans des volumes docker. Par défaut, l'execution du script `elk-rm.sh` va eteindre les conteneurs sans supprimer de données:
 
 ```sh
 cd /opt/docker-elk
-sudo bash swarm-rm.sh
+sudo bash elk-rm.sh
 ```
 
 ### Comment réexécuter le stack
@@ -213,8 +213,8 @@ sudo bash swarm-rm.sh
 Pour relancer le stack et prendre en compte les modifications de configuration (certificats, mots de passe, fichier de configuration ELK)  
 Vous pouvez simplement réexecuter le script de setup:
 
-```console
-sudo bash swarm-setup.sh
+```sh
+sudo bash elk-setup.sh
 ```
 
 Pour supprimer les volumes, il est recommandé d'utiliser la section `Volumes` de la console `portainer` accessible depuis <https://portainer.aero44.local:9443/>
@@ -299,7 +299,7 @@ tls/certs/elasticsearch
 et relancez la commmande:
 
 ```sh
-$ sudo docker compose up tls -d
+sudo docker compose up tls -d
 ```
 
 ### Autre manière de modifier les mots de passe

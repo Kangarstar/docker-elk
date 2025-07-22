@@ -1,3 +1,4 @@
+# Archive du script setup actuellement intégrer a swarm-setup.sh
 #!/usr/bin/env bash
 
 set -eu

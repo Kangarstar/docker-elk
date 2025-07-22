@@ -1,3 +1,4 @@
+# Archive du script setup actuellement intégrer a swarm-setup.sh
 #!/usr/bin/env bash
 
 es_ca_cert="${BASH_SOURCE[0]%/*}"/ca.crt
