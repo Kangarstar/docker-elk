@@ -1,5 +1,5 @@
 ---
-## Default Logstash configuration from Logstash base image.
+## Configuration pa défaut de Logstash.
 ## https://github.com/elastic/logstash/blob/main/docker/data/logstash/config/logstash-full.yml
 #
 api.http.host: 0.0.0.0
