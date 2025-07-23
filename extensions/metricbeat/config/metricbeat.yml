@@ -10,10 +10,10 @@ metricbeat.config:
     # Reload module configs as they change:
     reload.enabled: false
 
-metricbeat.autodiscover:
-  providers:
-    - type: docker
-      hints.enabled: false
+# metricbeat.autodiscover:
+#   providers:
+#     - type: docker
+#       hints.enabled: false
 
 metricbeat.modules:
 - module: elasticsearch
