@@ -161,19 +161,19 @@ services:
       bash -c "
         echo 'Waiting for Elasticsearch nodes to be available...';
 
-        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch1:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
+        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch1:9200/_cluster/health | grep -Eq \"^(200|401)$$\"; do
           echo 'Elasticsearch1 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
         echo 'Elasticsearch1 is up';
 
-        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch2:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
+        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch2:9200/_cluster/health | grep -Eq \"^(200|401)$$\"; do
           echo 'Elasticsearch2 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
         echo 'Elasticsearch2 is up';
 
-        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch3:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
+        until curl -ks -o /dev/null -w \"%%{http_code}\" https://elasticsearch3:9200/_cluster/health | grep -Eq \"^(200|401)$$\"; do
           echo 'Elasticsearch3 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
