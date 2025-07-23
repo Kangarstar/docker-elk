@@ -13,7 +13,7 @@ metricbeat.config:
 metricbeat.autodiscover:
   providers:
     - type: docker
-      hints.enabled: true
+      hints.enabled: false
 
 metricbeat.modules:
 - module: elasticsearch
@@ -24,8 +24,8 @@ metricbeat.modules:
     certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
     verification_mode: certificate
   # xpack.enabled: true
-  # period: 60s
-  # enabled: true
+  period: 60s
+  enabled: true
 
 - module: kibana
   hosts: [ https://kibana:5601 ]
@@ -35,8 +35,8 @@ metricbeat.modules:
     certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
     verification_mode: certificate
   # xpack.enabled: true
-  # period: 60s
-  # enabled: true
+  period: 60s
+  enabled: true
 
 - module: logstash
   hosts: ["http://logstash:9600"]
@@ -47,8 +47,8 @@ metricbeat.modules:
     certificate_authorities: ["/usr/share/metricbeat/ca.crt"]
     verification_mode: certificate
   # xpack.enabled: true
-  # period: 60s
-  # enabled: true
+  period: 60s
+  enabled: true
 
 
 # - module: docker
@@ -72,18 +72,19 @@ metricbeat.modules:
     - load
     - memory
     - network
-    # - process
-    # - process_summary
     - socket_summary
     - filesystem
     - fsstat
+  metricsets.exclude:
+    - process
+    - process_summary
 
 processors:
   - add_cloud_metadata: ~
   - add_docker_metadata: ~
   - add_kubernetes_metadata: ~
 
-logging.level: info
+logging.level: debug
 logging.to_stderr: true
 
 monitoring.enabled: false
