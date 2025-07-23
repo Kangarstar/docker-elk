@@ -1,3 +1,6 @@
+# Fichier de configuration Docker Stack, l'équivalent au Docker Compose pour le mode Swarm (cluster)
+# Défini tous les services Docker de l'ELK stack ansi que leur config, certificats, volumes.
+# Les paramètre de cluster sont dous "Deploy" (nombre de conteneurs, comportement failover etc..)
 services:
   elasticsearch1:
     image: "docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-9.0.3}"
