@@ -85,6 +85,7 @@ processors:
   - add_kubernetes_metadata: ~
 
 logging.level: debug
+logging.selectors: ["*"]  # This will show module loading details
 logging.to_stderr: true
 
 monitoring.enabled: false
