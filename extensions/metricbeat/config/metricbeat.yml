@@ -19,7 +19,7 @@ metricbeat.modules:
   ssl:
     certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
     verification_mode: certificate
-  # xpack.enabled: true
+  xpack.enabled: true
   period: 60s
   enabled: true
 
@@ -30,7 +30,7 @@ metricbeat.modules:
   ssl:
     certificate_authorities: [ /usr/share/metricbeat/ca.crt ]
     verification_mode: certificate
-  # xpack.enabled: true
+  xpack.enabled: true
   period: 60s
   enabled: true
 
@@ -42,7 +42,7 @@ metricbeat.modules:
   ssl:
     certificate_authorities: ["/usr/share/metricbeat/ca.crt"]
     verification_mode: certificate
-  # xpack.enabled: true
+  xpack.enabled: true
   period: 60s
   enabled: true
 
@@ -61,19 +61,19 @@ metricbeat.modules:
 #   period: 60s
 #   enabled: true
 
-- module: system
-  period: 60s
-  metricsets:
-    - cpu
-    - load
-    - memory
-    - network
-    - socket_summary
-    - filesystem
-    - fsstat
-  metricsets.exclude:
-    - process
-    - process_summary
+# - module: system
+#   period: 60s
+#   metricsets:
+#     - cpu
+#     - load
+#     - memory
+#     - network
+#     - socket_summary
+#     - filesystem
+#     - fsstat
+#   metricsets.exclude:
+#     - process
+#     - process_summary
 
 processors:
   - add_cloud_metadata: ~
