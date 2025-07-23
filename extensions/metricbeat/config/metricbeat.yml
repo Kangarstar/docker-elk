@@ -72,8 +72,8 @@ metricbeat.modules:
     - load
     - memory
     - network
-    - process
-    - process_summary
+    # - process
+    # - process_summary
     - socket_summary
     - filesystem
     - fsstat
