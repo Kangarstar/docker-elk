@@ -160,31 +160,29 @@ services:
     entrypoint: >
       bash -c "
         echo 'Waiting for Elasticsearch nodes to be available...';
-        
-        # Wait for elasticsearch1
-        until curl -v https://elasticsearch1:9200/_cluster/health >/dev/null 2>&1; do
+
+        until curl -ks -o /dev/null -w \"%{http_code}\" https://elasticsearch1:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
           echo 'Elasticsearch1 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
-        echo 'Elasticsearch1 is ready';
-        
-        # Wait for elasticsearch2
-        until curl -v https://elasticsearch2:9200/_cluster/health >/dev/null 2>&1; do
+        echo 'Elasticsearch1 is up';
+
+        until curl -ks -o /dev/null -w \"%{http_code}\" https://elasticsearch2:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
           echo 'Elasticsearch2 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
-        echo 'Elasticsearch2 is ready';
-        
-        # Wait for elasticsearch3
-        until curl -v https://elasticsearch3:9200/_cluster/health >/dev/null 2>&1; do
+        echo 'Elasticsearch2 is up';
+
+        until curl -ks -o /dev/null -w \"%{http_code}\" https://elasticsearch3:9200/_cluster/health | grep -Eq \"^(200|401)$\"; do
           echo 'Elasticsearch3 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
-        echo 'Elasticsearch3 is ready';
-        
-        echo 'All Elasticsearch nodes are ready, starting Kibana...';
+        echo 'Elasticsearch3 is up';
+
+        echo 'All Elasticsearch nodes are responding, starting Kibana...';
         exec /usr/share/kibana/bin/kibana
       "
+
     ports:
       - "5601:5601"
     environment:
