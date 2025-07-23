@@ -162,21 +162,21 @@ services:
         echo 'Waiting for Elasticsearch nodes to be available...';
         
         # Wait for elasticsearch1
-        until curl -sf --insecure https://elasticsearch1:9200/_cluster/health >/dev/null 2>&1; do
+        until curl -v https://elasticsearch1:9200/_cluster/health >/dev/null 2>&1; do
           echo 'Elasticsearch1 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
         echo 'Elasticsearch1 is ready';
         
         # Wait for elasticsearch2
-        until curl -sf --insecure https://elasticsearch2:9200/_cluster/health >/dev/null 2>&1; do
+        until curl -v https://elasticsearch2:9200/_cluster/health >/dev/null 2>&1; do
           echo 'Elasticsearch2 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
         echo 'Elasticsearch2 is ready';
         
         # Wait for elasticsearch3
-        until curl -sf --insecure https://elasticsearch3:9200/_cluster/health >/dev/null 2>&1; do
+        until curl -v https://elasticsearch3:9200/_cluster/health >/dev/null 2>&1; do
           echo 'Elasticsearch3 not ready yet, waiting 5 seconds...';
           sleep 5;
         done;
