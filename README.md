@@ -22,7 +22,7 @@ cd /opt
 ```
 
 ```sh
-git clone ssh://git@ssh.github.com:443/NTE-Airport-DSI/docker-elk.git
+git clone git@github.com:Kangarstar/docker-elk.git
 ```
 
 ```sh
@@ -90,7 +90,7 @@ Cloner ce repository sur le premier hôte Docker Swarm du cluster. Il va déploy
 
 ```sh
 cd /opt
-git clone https://github.com/NTE-Airport-DSI/docker-elk.git
+git clone git@github.com:Kangarstar/docker-elk.git
 ```
 
 Ensuite, generer les certificats X.509 pour activer les communications en TLS entre composants:
@@ -119,7 +119,7 @@ sudo bash elk-diagnostic.sh
 
 > [!NOTE]
 
-Accédez à l'interface web Kibana en accédant a <http://localhost:5601> ou <https://kibana.aero44.local:5601> dans votre navigateur puis connectez vous avec vos identifiants.
+Accédez à l'interface web Kibana en accédant a <http://localhost:5601> dans votre navigateur puis connectez vous avec vos identifiants.
 
 * user: *elastic*
 * password: *****
@@ -181,7 +181,7 @@ Le mot de passe _"changeme"_ qui est défini par défaut pour tous les utilisate
 
 #### Injection de données
 
-Connectez vous a l'interface Kibana <https://localhost:5601> ou <https://kibana.aero44.local:5601> depuis votre navigateur 
+Connectez vous a l'interface Kibana <https://localhost:5601> depuis votre navigateur 
 avec les identifiants configurés et stockés dans le Keepass
 
 Une fois le stack entièrement configuré, il est possible d'ingérer des logs.
@@ -217,7 +217,7 @@ Vous pouvez simplement réexecuter le script de setup:
 sudo bash elk-setup.sh
 ```
 
-Pour supprimer les volumes, il est recommandé d'utiliser la section `Volumes` de la console `portainer` accessible depuis <https://portainer.aero44.local:9443/>
+Pour supprimer les volumes, il est recommandé d'utiliser la section `Volumes` de la console `portainer`
 
 ### Montée de Version
 
